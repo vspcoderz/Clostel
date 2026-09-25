@@ -16,6 +16,10 @@ class AdaptiveGlassScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!usesAppleLiquidGlass) {
+      return child;
+    }
+
     return LiquidGlassBackdropGroup(
       settings: const LiquidGlassSettings.matteDark,
       child: child,

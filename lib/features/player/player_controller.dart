@@ -14,17 +14,17 @@ class PlayerController extends ChangeNotifier {
         _playback = playback {
     _positionSubscription = _playback.positionStream.listen((position) {
       _position = position;
-      notifyListeners();
+      _notify();
     });
     _durationSubscription = _playback.durationStream.listen((duration) {
       if (duration != null) {
         _duration = duration;
-        notifyListeners();
+        _notify();
       }
     });
     _playingSubscription = _playback.playingStream.listen((playing) {
       _isPlaying = playing;
-      notifyListeners();
+      _notify();
     });
     _completedSubscription = _playback.completedStream.listen((completed) {
       if (completed) {
@@ -53,6 +53,8 @@ class PlayerController extends ChangeNotifier {
   bool _isSearching = false;
   int _searchRequest = 0;
   int _playRequest = 0;
+  bool _disposed = false;
+  Future<void> _playbackTail = Future<void>.value();
   String? _error;
 
   List<Track> get featured => _featured;
@@ -93,7 +95,7 @@ class PlayerController extends ChangeNotifier {
 
     _isLoading = true;
     _error = null;
-    notifyListeners();
+    _notify();
 
     try {
       _featured = await _catalog.getFeatured();
@@ -104,7 +106,7 @@ class PlayerController extends ChangeNotifier {
       _error = 'Could not load the catalog. Try again.';
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -112,7 +114,7 @@ class PlayerController extends ChangeNotifier {
     final request = ++_searchRequest;
     _isSearching = true;
     _error = null;
-    notifyListeners();
+    _notify();
 
     try {
       final results = await _catalog.search(query);
@@ -126,7 +128,7 @@ class PlayerController extends ChangeNotifier {
     } finally {
       if (request == _searchRequest) {
         _isSearching = false;
-        notifyListeners();
+        _notify();
       }
     }
   }
@@ -145,14 +147,22 @@ class PlayerController extends ChangeNotifier {
     _duration = track.duration;
     _isLoading = true;
     _error = null;
-    notifyListeners();
+    _notify();
 
-    try {
+    final operation = _playbackTail.then<void>((_) async {
+      if (request != _playRequest) {
+        return;
+      }
       await _playback.load(track);
       if (request != _playRequest) {
         return;
       }
       await _playback.play();
+    });
+    _playbackTail = operation.catchError((Object _) {});
+
+    try {
+      await operation;
     } catch (_) {
       if (request != _playRequest) {
         return;
@@ -162,11 +172,11 @@ class PlayerController extends ChangeNotifier {
       _duration = Duration.zero;
       _isPlaying = false;
       _error = 'This track could not be played.';
-      notifyListeners();
+      _notify();
     } finally {
       if (request == _playRequest) {
         _isLoading = false;
-        notifyListeners();
+        _notify();
       }
     }
   }
@@ -192,7 +202,7 @@ class PlayerController extends ChangeNotifier {
       }
     } catch (_) {
       _error = 'Playback controls are unavailable right now.';
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -227,7 +237,7 @@ class PlayerController extends ChangeNotifier {
       await _playback.seek(value);
     } catch (_) {
       _error = 'Could not move the playback position.';
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -239,16 +249,23 @@ class PlayerController extends ChangeNotifier {
     } else {
       _library = List<Track>.unmodifiable([..._library, track]);
     }
-    notifyListeners();
+    _notify();
   }
 
   void clearError() {
     _error = null;
-    notifyListeners();
+    _notify();
+  }
+
+  void _notify() {
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _positionSubscription.cancel();
     _durationSubscription.cancel();
     _playingSubscription.cancel();
