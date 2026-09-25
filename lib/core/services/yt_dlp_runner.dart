@@ -7,9 +7,13 @@ abstract interface class YtDlpRunner {
 }
 
 class ProcessYtDlpRunner implements YtDlpRunner {
-  const ProcessYtDlpRunner({required this.executable});
+  const ProcessYtDlpRunner({
+    required this.executable,
+    this.timeout = const Duration(minutes: 5),
+  });
 
   final String executable;
+  final Duration timeout;
 
   @override
   Future<ProcessResult> run(List<String> arguments) async {
@@ -28,7 +32,7 @@ class ProcessYtDlpRunner implements YtDlpRunner {
     final stderr = process.stderr.transform(utf8.decoder).join();
     var exitCode = -1;
     try {
-      exitCode = await process.exitCode.timeout(const Duration(minutes: 5));
+      exitCode = await process.exitCode.timeout(timeout);
     } on TimeoutException {
       process.kill();
     }

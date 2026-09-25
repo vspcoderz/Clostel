@@ -41,7 +41,7 @@ Future<void> main() async {
         ).trim().toLowerCase() ==
         'true',
   );
-  final ytDlpPath = const String.fromEnvironment('YT_DLP_PATH').trim();
+  final ytDlpExecutable = await _resolveYtDlpExecutable();
   final fileResolvers = <TrackFileResolver>[];
   final catalogSources = <MusicCatalog>[
     const JamendoMusicCatalog(
@@ -68,11 +68,14 @@ Future<void> main() async {
   if (bhariyaMusicCatalog.isConfigured) {
     catalogSources.add(bhariyaMusicCatalog);
   }
-  if (ytDlpPath.isNotEmpty &&
-      (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
-    final runner = ProcessYtDlpRunner(executable: ytDlpPath);
-    catalogSources.add(YtDlpMusicCatalog(runner: runner));
-    fileResolvers.add(YtDlpAudioResolver(runner: runner));
+  if (ytDlpExecutable != null) {
+    final searchRunner = ProcessYtDlpRunner(
+      executable: ytDlpExecutable,
+      timeout: const Duration(seconds: 45),
+    );
+    final downloadRunner = ProcessYtDlpRunner(executable: ytDlpExecutable);
+    catalogSources.insert(0, YtDlpMusicCatalog(runner: searchRunner));
+    fileResolvers.add(YtDlpAudioResolver(runner: downloadRunner));
   }
   try {
     await discordPresence.initialize();
@@ -92,4 +95,37 @@ Future<void> main() async {
     localMusic: const LocalMusicService(),
   );
   runApp(ClostelApp(controller: controller, discordPresence: discordPresence));
+}
+
+Future<String?> _resolveYtDlpExecutable() async {
+  if (const String.fromEnvironment('YT_DLP_DISABLED').trim().toLowerCase() ==
+      'true') {
+    return null;
+  }
+  if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) {
+    return null;
+  }
+
+  final configuredPath = const String.fromEnvironment('YT_DLP_PATH').trim();
+  final candidates = <String>[
+    if (configuredPath.isNotEmpty) configuredPath,
+    if (Platform.isWindows) ...['yt-dlp.exe', 'yt-dlp'],
+    if (!Platform.isWindows) 'yt-dlp',
+  ];
+
+  for (final candidate in candidates) {
+    try {
+      final result = await Process.run(
+        candidate,
+        ['--version'],
+        runInShell: false,
+      ).timeout(const Duration(seconds: 5));
+      if (result.exitCode == 0) {
+        return candidate;
+      }
+    } on Object {
+      // Try the next platform-specific executable name.
+    }
+  }
+  return null;
 }

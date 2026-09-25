@@ -47,9 +47,9 @@ Upgrade Clostel into a polished, local-first music player with a full Now Playin
 - Implement the UI in phases so the app remains buildable: player foundation first, then navigation/search/library/settings, then discovery polish and accessibility.
 - Keep the existing `PlayerController` as the single playback owner and add explicit playback state, queue actions, persistence seams, and background/media integration behind service interfaces.
 - Preserve Material 3 on Android/Linux/Windows and Liquid Glass only for functional layers on Apple platforms.
+- Treat the desktop yt-dlp adapter as an explicit, user-operated integration. It may auto-discover a locally installed yt-dlp executable on Linux/macOS/Windows, with `YT_DLP_PATH` as an override and `YT_DLP_DISABLED=true` as an opt-out. fzf is not embedded in the Flutter UI; Flutter provides the selection surface.
 - Treat BhariyaMusic as an optional external provider configured by environment, not a bundled production dependency. Do not hard-code its DDNS endpoint.
 - Do not enable or advertise audio extraction/download from YouTube or Spotify by default. If the provider is enabled, validate every URL and response and clearly mark provenance/playback status.
-- Do not copy the Python backend into the Flutter app until its license, security posture, API contract, and rights model are explicitly approved.
 
 ### Files touched
 

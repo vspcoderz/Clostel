@@ -12,7 +12,7 @@ class YtDlpMusicCatalog implements MusicCatalog {
   final int limit;
 
   @override
-  Future<List<Track>> getFeatured() => _search('music');
+  Future<List<Track>> getFeatured() async => const <Track>[];
 
   @override
   Future<List<Track>> search(String query) {

@@ -16,7 +16,7 @@ The first slice is a playable MVP shell with:
 - Funnel Display headings and Open Sans body typography, bundled locally
 - Discover/search surface
 - Public catalog adapters for ccMixter, Openverse, Internet Archive, Deezer/Apple iTunes previews, and optional Jamendo/Audius full-track sources
-- Optional desktop-only yt-dlp search and temporary audio resolution, disabled unless `YT_DLP_PATH` is configured
+- Optional desktop-only yt-dlp search and temporary audio resolution, auto-discovered when the local executable is available
 - Local demo catalog fallback for offline development
 - Local audio import for user-owned files and offline listening
 - Preview playback is clearly labeled; full-track sources retain their per-track license and attribution metadata
@@ -45,12 +45,23 @@ flutter run -d linux \
 
 Jamendo requires a client ID even for read requests. Audius read-only requests use the Clostel app name and can optionally raise limits with `AUDIUS_API_KEY`. Clostel does not ship test or production credentials in source. ccMixter, Openverse, and Internet Archive use public read endpoints and still require per-track license review.
 
-To opt into the desktop-only yt-dlp adapter, install yt-dlp, ffmpeg, and the current yt-dlp-ejs/JavaScript runtime support recommended by yt-dlp using their official installation instructions, then provide the executable path:
+Clostel auto-detects a locally installed yt-dlp on Linux, macOS, and Windows and adds it as the first desktop search source. Install yt-dlp and ffmpeg using their official installation instructions. The adapter is experimental and desktop-only; it is not a production catalog or download backend.
+
+To override auto-discovery with a specific executable:
 
 ```bash
 flutter run -d linux \
   --dart-define=YT_DLP_PATH=/absolute/path/to/yt-dlp
 ```
+
+To disable yt-dlp discovery:
+
+```bash
+flutter run -d linux \
+  --dart-define=YT_DLP_DISABLED=true
+```
+
+YouTube results are clearly attributed and should only be used where you have the necessary rights and permission. Do not use this path to bypass copyright, authentication, DRM, or a service's terms.
 
 ### Optional BhariyaMusic-compatible provider
 
