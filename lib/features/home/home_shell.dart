@@ -10,11 +10,13 @@ class HomeShell extends StatefulWidget {
   const HomeShell({
     required this.controller,
     required this.discordPresence,
+    this.themeController,
     super.key,
   });
 
   final PlayerController controller;
   final DiscordPresenceService discordPresence;
+  final ThemeModeController? themeController;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -59,6 +61,7 @@ class _HomeShellState extends State<HomeShell> {
                 selectedIndex: _selectedIndex,
                 controller: controller,
                 discordPresence: widget.discordPresence,
+                themeController: widget.themeController,
                 discordEnabled: widget.discordPresence.userEnabled,
                 onDiscordChanged: (enabled) async {
                   await widget.discordPresence.setEnabled(enabled);
@@ -74,6 +77,7 @@ class _HomeShellState extends State<HomeShell> {
               selectedIndex: _selectedIndex,
               controller: controller,
               discordPresence: widget.discordPresence,
+              themeController: widget.themeController,
               discordEnabled: widget.discordPresence.userEnabled,
               onDiscordChanged: (enabled) async {
                 await widget.discordPresence.setEnabled(enabled);
@@ -95,6 +99,7 @@ class _DesktopShell extends StatelessWidget {
     required this.selectedIndex,
     required this.controller,
     required this.discordPresence,
+    required this.themeController,
     required this.discordEnabled,
     required this.onDiscordChanged,
     required this.onSelect,
@@ -103,6 +108,7 @@ class _DesktopShell extends StatelessWidget {
   final int selectedIndex;
   final PlayerController controller;
   final DiscordPresenceService discordPresence;
+  final ThemeModeController? themeController;
   final bool discordEnabled;
   final ValueChanged<bool> onDiscordChanged;
   final ValueChanged<int> onSelect;
@@ -145,6 +151,7 @@ class _DesktopShell extends StatelessWidget {
                         index: selectedIndex,
                         controller: controller,
                         discordPresence: discordPresence,
+                        themeController: themeController,
                         discordEnabled: discordEnabled,
                         onDiscordChanged: onDiscordChanged,
                       ),
@@ -166,6 +173,7 @@ class _MobileShell extends StatelessWidget {
     required this.selectedIndex,
     required this.controller,
     required this.discordPresence,
+    required this.themeController,
     required this.discordEnabled,
     required this.onDiscordChanged,
     required this.onSelect,
@@ -174,6 +182,7 @@ class _MobileShell extends StatelessWidget {
   final int selectedIndex;
   final PlayerController controller;
   final DiscordPresenceService discordPresence;
+  final ThemeModeController? themeController;
   final bool discordEnabled;
   final ValueChanged<bool> onDiscordChanged;
   final ValueChanged<int> onSelect;
@@ -192,6 +201,7 @@ class _MobileShell extends StatelessWidget {
               index: selectedIndex,
               controller: controller,
               discordPresence: discordPresence,
+              themeController: themeController,
               discordEnabled: discordEnabled,
               onDiscordChanged: onDiscordChanged,
             ),
@@ -237,6 +247,7 @@ class _SelectedPage extends StatelessWidget {
     required this.index,
     required this.controller,
     required this.discordPresence,
+    required this.themeController,
     required this.discordEnabled,
     required this.onDiscordChanged,
   });
@@ -244,6 +255,7 @@ class _SelectedPage extends StatelessWidget {
   final int index;
   final PlayerController controller;
   final DiscordPresenceService discordPresence;
+  final ThemeModeController? themeController;
   final bool discordEnabled;
   final ValueChanged<bool> onDiscordChanged;
 
@@ -256,6 +268,7 @@ class _SelectedPage extends StatelessWidget {
       _ => _SettingsView(
           discordConfigured: discordPresence.isConfigured,
           discordEnabled: discordEnabled,
+          themeController: themeController,
           onDiscordChanged: onDiscordChanged,
         ),
     };
@@ -565,6 +578,10 @@ class _TrackRow extends StatelessWidget {
                 } else {
                   controller.playTrack(track, queue: queue);
                 }
+              } else if (action == 'queue') {
+                controller.addToQueue(track);
+              } else if (action == 'next') {
+                controller.playNext(track);
               } else if (action == 'save') {
                 controller.toggleLibrary(track);
               }
@@ -582,6 +599,40 @@ class _TrackRow extends StatelessWidget {
                       Expanded(
                         child: Text(
                           '$playLabel ${track.title}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (canPlay)
+                PopupMenuItem<String>(
+                  value: 'next',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.playlist_play),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Play next: ${track.title}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (canPlay)
+                PopupMenuItem<String>(
+                  value: 'queue',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.queue_music),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Add to queue: ${track.title}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -703,13 +754,30 @@ class _QueueView extends StatelessWidget {
       eyebrow: 'Queue / up next',
       title: 'Let the room\nkeep moving.',
       message: 'The queue is shared across every Clostel surface.',
-      child: controller.queue.isEmpty
-          ? const _EmptyState(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (controller.queue.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: controller.clearQueue,
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear queue'),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (controller.queue.isEmpty)
+            const _EmptyState(
               icon: Icons.queue_music,
               title: 'Nothing queued',
               message: 'Start a track from Discover and it will appear here.',
             )
-          : _TrackList(tracks: controller.queue, controller: controller),
+          else
+            _TrackList(tracks: controller.queue, controller: controller),
+        ],
+      ),
     );
   }
 }
@@ -735,11 +803,13 @@ class _SettingsView extends StatelessWidget {
   const _SettingsView({
     required this.discordConfigured,
     required this.discordEnabled,
+    required this.themeController,
     required this.onDiscordChanged,
   });
 
   final bool discordConfigured;
   final bool discordEnabled;
+  final ThemeModeController? themeController;
   final ValueChanged<bool> onDiscordChanged;
 
   @override
@@ -783,19 +853,49 @@ class _SettingsView extends StatelessWidget {
               ],
             ),
             const Divider(height: 1),
-            const ExpansionTile(
-              leading: Icon(Icons.palette_outlined),
-              title: Text('Appearance'),
-              subtitle: Text('Warm white is the default listening surface.'),
+            ExpansionTile(
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Appearance'),
+              subtitle: Text(
+                themeController == null
+                    ? 'System appearance is active.'
+                    : 'Choose how Clostel looks on this device.',
+              ),
               children: [
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'The listening surface uses a warm white background, high-contrast text, and the coral accent to keep controls easy to find without competing with the music.',
-                    ),
-                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: themeController == null
+                      ? const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'The app is following the system appearance.',
+                          ),
+                        )
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: SegmentedButton<ThemeMode>(
+                            segments: const [
+                              ButtonSegment(
+                                value: ThemeMode.system,
+                                label: Text('System'),
+                                icon: Icon(Icons.brightness_auto),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.light,
+                                label: Text('Light'),
+                                icon: Icon(Icons.light_mode_outlined),
+                              ),
+                              ButtonSegment(
+                                value: ThemeMode.dark,
+                                label: Text('Dark'),
+                                icon: Icon(Icons.dark_mode_outlined),
+                              ),
+                            ],
+                            selected: {themeController!.value},
+                            onSelectionChanged: (selection) =>
+                                themeController!.setMode(selection.first),
+                          ),
+                        ),
                 ),
               ],
             ),

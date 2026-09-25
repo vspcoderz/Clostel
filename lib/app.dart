@@ -58,6 +58,7 @@ class _ClostelAppState extends State<ClostelApp> {
           home: HomeShell(
             controller: widget.controller,
             discordPresence: widget.discordPresence,
+            themeController: _themes,
           ),
         );
       },
