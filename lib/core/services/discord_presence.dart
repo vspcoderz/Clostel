@@ -184,15 +184,15 @@ class DiscordPresenceService extends ChangeNotifier {
       _connectingClient = client;
 
       try {
-        await client!.connect().timeout(_connectionTimeout);
+        await client.connect().timeout(_connectionTimeout);
       } catch (_) {
         transportFailed = true;
-        _handleTransportFailure(client!);
+        _handleTransportFailure(client);
         return null;
       }
       connected = client;
 
-      if (transportFailed || connected == null || _disposed || !_userEnabled) {
+      if (transportFailed || _disposed || !_userEnabled) {
         return null;
       }
 
