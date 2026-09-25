@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/models/track.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/local_music_service.dart';
+import '../../core/services/music_download_service.dart';
 import '../../core/services/playback_service.dart';
 
 @immutable
@@ -39,9 +40,11 @@ class PlayerController extends ChangeNotifier {
     required MusicCatalog catalog,
     required PlaybackService playback,
     LocalMusicService? localMusic,
+    MusicDownloadService? musicDownload,
   })  : _catalog = catalog,
         _playback = playback,
-        _localMusic = localMusic {
+        _localMusic = localMusic,
+        _musicDownload = musicDownload {
     _positionSubscription = _playback.positionStream.listen((position) {
       _position = position;
       _notify();
@@ -76,6 +79,7 @@ class PlayerController extends ChangeNotifier {
   final MusicCatalog _catalog;
   final PlaybackService _playback;
   final LocalMusicService? _localMusic;
+  final MusicDownloadService? _musicDownload;
 
   late final StreamSubscription<Duration> _positionSubscription;
   late final StreamSubscription<Duration?> _durationSubscription;
@@ -95,12 +99,15 @@ class PlayerController extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSearching = false;
   bool _isImportingLibrary = false;
+  final Set<String> _downloadingTrackIds = <String>{};
   int _searchRequest = 0;
   int _playRequest = 0;
   bool _disposed = false;
   Timer? _searchDebounce;
   Future<void> _playbackTail = Future<void>.value();
   String? _error;
+  String? _downloadError;
+  String? _lastDownloadedPath;
 
   List<Track> get featured => _featured;
   List<Track> get searchResults => _searchResults;
@@ -115,6 +122,13 @@ class PlayerController extends ChangeNotifier {
   bool get isSearching => _isSearching;
   bool get isImportingLibrary => _isImportingLibrary;
   String? get error => _error;
+  Set<String> get downloadingTrackIds =>
+      Set<String>.unmodifiable(_downloadingTrackIds);
+  bool get isDownloading => _downloadingTrackIds.isNotEmpty;
+  bool isTrackDownloading(Track track) =>
+      _downloadingTrackIds.contains(track.id);
+  String? get downloadError => _downloadError;
+  String? get lastDownloadedPath => _lastDownloadedPath;
 
   PlayerSnapshot get snapshot => PlayerSnapshot(
         status: _status,
@@ -402,6 +416,39 @@ class PlayerController extends ChangeNotifier {
     } else {
       _library = List<Track>.unmodifiable([..._library, track]);
     }
+    _notify();
+  }
+
+  Future<String?> downloadTrack(Track track) async {
+    final service = _musicDownload;
+    if (service == null || !service.supports(track)) {
+      _downloadError = 'This track cannot be downloaded.';
+      _notify();
+      return null;
+    }
+    if (isTrackDownloading(track)) {
+      return null;
+    }
+
+    _downloadingTrackIds.add(track.id);
+    _downloadError = null;
+    _lastDownloadedPath = null;
+    _notify();
+    try {
+      final path = await service.download(track);
+      _lastDownloadedPath = path;
+      return path;
+    } on Object {
+      _downloadError = 'Could not download ${track.title}.';
+      return null;
+    } finally {
+      _downloadingTrackIds.remove(track.id);
+      _notify();
+    }
+  }
+
+  void clearDownloadError() {
+    _downloadError = null;
     _notify();
   }
 

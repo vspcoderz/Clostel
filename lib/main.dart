@@ -20,9 +20,11 @@ import 'core/data/yt_dlp_catalog.dart';
 import 'core/services/discord_presence.dart';
 import 'core/services/local_music_service.dart';
 import 'core/services/music_catalog.dart';
+import 'core/services/music_download_service.dart';
 import 'core/services/playback_service.dart';
 import 'core/services/track_file_resolver.dart';
 import 'core/services/yt_dlp_audio_resolver.dart';
+import 'core/services/yt_dlp_download_service.dart';
 import 'core/services/yt_dlp_runner.dart';
 import 'features/player/player_controller.dart';
 
@@ -44,6 +46,7 @@ Future<void> main() async {
   );
   final ytDlpExecutable = await _resolveYtDlpExecutable();
   final fileResolvers = <TrackFileResolver>[];
+  MusicDownloadService? musicDownload;
   final catalogSources = <MusicCatalog>[
     const JamendoMusicCatalog(
       clientId: String.fromEnvironment('JAMENDO_CLIENT_ID'),
@@ -77,6 +80,7 @@ Future<void> main() async {
     final downloadRunner = ProcessYtDlpRunner(executable: ytDlpExecutable);
     catalogSources.insert(0, YtDlpMusicCatalog(runner: searchRunner));
     fileResolvers.add(YtDlpAudioResolver(runner: downloadRunner));
+    musicDownload = YtDlpMusicDownloadService(runner: downloadRunner);
   }
   final controller = PlayerController(
     catalog: ResilientMusicCatalog(
@@ -88,6 +92,7 @@ Future<void> main() async {
     ),
     playback: JustAudioPlaybackService(fileResolvers: fileResolvers),
     localMusic: const LocalMusicService(),
+    musicDownload: musicDownload,
   );
   runApp(ClostelApp(controller: controller, discordPresence: discordPresence));
   unawaited(discordPresence.initialize());
