@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/track.dart';
 import '../../core/services/discord_presence.dart';
+import '../../core/services/playback_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../player/player_controller.dart';
 import 'adaptive_components.dart';
+
+/// Below this width Discover uses the phone gutter; above it, the roomier one.
+const double _kDiscoverCompactBreakpoint = 620;
 
 class HomeShell extends StatefulWidget {
   const HomeShell({
@@ -275,28 +279,131 @@ class _SelectedPage extends StatelessWidget {
   }
 }
 
-class _DiscoverView extends StatelessWidget {
+/// A mood or scene the reader can jump straight into.
+///
+/// These entries are query vocabulary, not catalog content: each one is handed
+/// to [PlayerController.search] exactly as if it had been typed. The genre
+/// chips beside them are derived from the tracks the controller already holds,
+/// so they always point at something the catalog can answer.
+class _DiscoveryTerm {
+  const _DiscoveryTerm({required this.label, required this.query});
+
+  final String label;
+  final String query;
+}
+
+const List<_DiscoveryTerm> _moodTerms = [
+  _DiscoveryTerm(label: 'Focus', query: 'focus'),
+  _DiscoveryTerm(label: 'Unwind', query: 'unwind'),
+  _DiscoveryTerm(label: 'Late night', query: 'night'),
+  _DiscoveryTerm(label: 'Morning', query: 'morning'),
+  _DiscoveryTerm(label: 'Energize', query: 'energy'),
+  _DiscoveryTerm(label: 'Vocals', query: 'vocal'),
+];
+
+class _DiscoverView extends StatefulWidget {
   const _DiscoverView({required this.controller});
 
   final PlayerController controller;
 
   @override
+  State<_DiscoverView> createState() => _DiscoverViewState();
+}
+
+/// Discover is one hero, one row of quick actions, and the catalog list. The
+/// only state it keeps locally is which chip, if any, is driving the search.
+class _DiscoverViewState extends State<_DiscoverView> {
+  String _query = '';
+  String? _activeTerm;
+
+  PlayerController get controller => widget.controller;
+
+  bool get _isBrowsing => _activeTerm != null || _query.trim().isNotEmpty;
+
+  String get _browseLabel => _activeTerm ?? _query.trim();
+
+  /// Genres already present in the loaded catalog, ranked by how many tracks
+  /// carry them. Derived, so a chip here never points at nothing.
+  List<_DiscoveryTerm> get _genreTerms {
+    final counts = <String, int>{};
+    for (final track in [...controller.featured, ...controller.library]) {
+      final genre = track.genre.trim();
+      if (genre.isEmpty) {
+        continue;
+      }
+      counts.update(genre, (value) => value + 1, ifAbsent: () => 1);
+    }
+
+    final ranked = counts.keys.toList()
+      ..sort((a, b) {
+        final byCount = counts[b]!.compareTo(counts[a]!);
+        if (byCount != 0) {
+          return byCount;
+        }
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+
+    return [
+      for (final genre in ranked.take(5))
+        _DiscoveryTerm(label: genre, query: genre),
+    ];
+  }
+
+  void _handleQueryChanged(String value) {
+    if (_activeTerm != null || value != _query) {
+      setState(() {
+        _query = value;
+        _activeTerm = null;
+      });
+    }
+    controller.search(value);
+  }
+
+  void _applyTerm(_DiscoveryTerm term) {
+    final isClearing = _activeTerm == term.query;
+    setState(() {
+      _activeTerm = isClearing ? null : term.query;
+      _query = isClearing ? '' : term.query;
+    });
+    controller.search(isClearing ? '' : term.query);
+  }
+
+  void _clearDiscovery() {
+    setState(() {
+      _query = '';
+      _activeTerm = null;
+    });
+    controller.search('');
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tracks = controller.searchResults;
-    final featured =
-        controller.featured.isEmpty ? null : controller.featured.first;
+    final results = controller.searchResults;
+    final featured = controller.featured;
+    final isLoadingList =
+        results.isEmpty && (controller.isLoading || controller.isSearching);
+    final gutter = _isCompactScreen(context) ? 16.0 : 24.0;
+
+    final countLabel = results.isEmpty
+        ? null
+        : '${results.length} ${results.length == 1 ? 'track' : 'tracks'}'
+            '${_isBrowsing ? ' matching "$_browseLabel"' : ''}';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 30, 24, 30),
+      padding: EdgeInsets.fromLTRB(gutter, 28, gutter, 32),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
+          constraints: const BoxConstraints(maxWidth: 900),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _PageIntro(controller: controller),
-              const SizedBox(height: 26),
-              AdaptiveSearchField(onChanged: controller.search),
+              _DiscoverHeader(controller: controller),
+              const SizedBox(height: 24),
+              AdaptiveSearchField(onChanged: _handleQueryChanged),
+              if (controller.isSearching) ...[
+                const SizedBox(height: 12),
+                const _SearchProgress(),
+              ],
               if (controller.error != null) ...[
                 const SizedBox(height: 12),
                 _ErrorBanner(
@@ -304,42 +411,48 @@ class _DiscoverView extends StatelessWidget {
                   onDismiss: controller.clearError,
                 ),
               ],
-              if (featured != null && controller.searchResults.isNotEmpty) ...[
-                const SizedBox(height: 28),
-                _FeaturedTrack(track: featured, controller: controller),
+              const SizedBox(height: 20),
+              _DiscoveryChips(
+                terms: [..._moodTerms, ..._genreTerms],
+                activeTerm: _activeTerm,
+                onTermSelected: _applyTerm,
+              ),
+              if (_isBrowsing) ...[
+                const SizedBox(height: 4),
+                _ActiveTermNotice(
+                  label: _browseLabel,
+                  onClear: _clearDiscovery,
+                ),
               ],
-              const SizedBox(height: 30),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Fresh signals',
-                        style: Theme.of(context).textTheme.headlineSmall),
-                  ),
-                  if (controller.isSearching)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
+              if (featured.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                _FeaturedHero(track: featured.first, controller: controller),
+              ],
+              const SizedBox(height: 32),
+              _SectionHeading(
+                eyebrow: _isBrowsing ? 'Results' : 'Catalog',
+                title: _isBrowsing ? 'Matching signals' : 'Fresh signals',
+                subtitle: countLabel,
               ),
               const SizedBox(height: 12),
-              if (controller.isLoading && tracks.isEmpty)
-                const _LoadingTracks()
-              else if (tracks.isEmpty)
-                const _EmptyState(
-                  icon: Icons.graphic_eq,
-                  title: 'No signals found',
-                  message: 'Try a different artist, album, or mood.',
+              if (isLoadingList)
+                const _LoadingTracks(count: 4)
+              else if (results.isEmpty)
+                _DiscoverEmptyState(
+                  isBrowsing: _isBrowsing,
+                  label: _browseLabel,
+                  hasError: controller.error != null,
+                  onClear: _clearDiscovery,
+                  onRetry:
+                      controller.isLoading ? null : controller.loadFeatured,
                 )
               else
-                ...tracks.map(
-                  (track) => _TrackRow(
+                for (final track in results)
+                  _TrackRow(
                     track: track,
                     controller: controller,
-                    queue: tracks,
+                    queue: results,
                   ),
-                ),
             ],
           ),
         ),
@@ -348,151 +461,384 @@ class _DiscoverView extends StatelessWidget {
   }
 }
 
-class _PageIntro extends StatelessWidget {
-  const _PageIntro({required this.controller});
+/// True when the window is phone-sized, used to pick the page gutter.
+bool _isCompactScreen(BuildContext context) {
+  return MediaQuery.sizeOf(context).width < _kDiscoverCompactBreakpoint;
+}
+
+String _playbackStatusLabel(PlayerController controller) {
+  if (controller.isLoading) {
+    return 'Loading';
+  }
+  return switch (controller.status) {
+    PlaybackStatus.idle => 'Idle',
+    PlaybackStatus.loading => 'Loading',
+    PlaybackStatus.buffering => 'Buffering',
+    PlaybackStatus.playing => 'Playing',
+    PlaybackStatus.paused => 'Paused',
+    PlaybackStatus.failed => 'Playback failed',
+    PlaybackStatus.ended => 'Finished',
+  };
+}
+
+/// Title block plus one quiet line of playback context, so the reader knows
+/// what the room is doing without a second card competing with the hero.
+class _DiscoverHeader extends StatelessWidget {
+  const _DiscoverHeader({required this.controller});
 
   final PlayerController controller;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final intro = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Discover / today',
-                style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 10),
-            Text('A better way to\nhear the world.',
-                style: Theme.of(context).textTheme.displaySmall),
-            const SizedBox(height: 10),
-            Text(
-              'A focused listening room for the tracks worth keeping close.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        );
-        final nowPlaying = Chip(
-          avatar: const Icon(Icons.graphic_eq, size: 16),
-          label: const Text('Now playing'),
-          side: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final track = controller.currentTrack;
+    final status = track == null
+        ? 'Nothing playing yet'
+        : '${_playbackStatusLabel(controller)}  ·  ${track.title}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Discover', style: theme.textTheme.labelMedium),
+        const SizedBox(height: 10),
+        Text(
+          'A better way to\nhear the world.',
+          style: theme.textTheme.displaySmall,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'A focused listening room for the tracks worth keeping close.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 14),
+        Text(
+          status,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: track == null ? null : colorScheme.primary,
           ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
-        );
-
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              intro,
-              if (controller.currentTrack != null) ...[
-                const SizedBox(height: 16),
-                nowPlaying,
-              ],
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(child: intro),
-            if (controller.currentTrack != null) nowPlaying,
-          ],
-        );
-      },
+        ),
+      ],
     );
   }
 }
 
-class _FeaturedTrack extends StatelessWidget {
-  const _FeaturedTrack({required this.track, required this.controller});
+class _DiscoveryChips extends StatelessWidget {
+  const _DiscoveryChips({
+    required this.terms,
+    required this.activeTerm,
+    required this.onTermSelected,
+  });
+
+  final List<_DiscoveryTerm> terms;
+  final String? activeTerm;
+  final ValueChanged<_DiscoveryTerm> onTermSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'Browse by mood or genre',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final term in terms)
+            _TermChip(
+              term: term,
+              isSelected: term.query == activeTerm,
+              onPressed: () => onTermSelected(term),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sticks to the app chip theme rather than restyling, so the quick actions
+/// stay recognisably secondary to the hero's primary button.
+class _TermChip extends StatelessWidget {
+  const _TermChip({
+    required this.term,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final _DiscoveryTerm term;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return ChoiceChip(
+      selected: isSelected,
+      showCheckmark: false,
+      label: Text(term.label),
+      labelStyle: theme.textTheme.labelMedium?.copyWith(
+        color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+      ),
+      onSelected: (_) => onPressed(),
+    );
+  }
+}
+
+class _ActiveTermNotice extends StatelessWidget {
+  const _ActiveTermNotice({required this.label, required this.onClear});
+
+  final String label;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Showing "$label"',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onClear,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+          ),
+          child: const Text('Clear'),
+        ),
+      ],
+    );
+  }
+}
+
+/// A hairline for in-flight searches. No copy, no spinner: the list below it
+/// swaps to skeletons, which already says what is happening.
+class _SearchProgress extends StatelessWidget {
+  const _SearchProgress();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      label: 'Searching the catalog',
+      child: const ClipRRect(
+        borderRadius: BorderRadius.all(Radius.circular(2)),
+        child: LinearProgressIndicator(minHeight: 2),
+      ),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({
+    required this.eyebrow,
+    required this.title,
+    this.subtitle,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(eyebrow.toUpperCase(), style: theme.textTheme.labelSmall),
+        const SizedBox(height: 6),
+        Text(title, style: theme.textTheme.headlineSmall),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(subtitle!, style: theme.textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
+}
+
+/// The one thing the screen leads with: artwork, strong type, the source and
+/// licensing line, and the single primary action. Everything else is a list.
+class _FeaturedHero extends StatelessWidget {
+  const _FeaturedHero({required this.track, required this.controller});
 
   final Track track;
   final PlayerController controller;
 
   @override
   Widget build(BuildContext context) {
-    final isCurrent = controller.currentTrack?.id == track.id;
+    final theme = Theme.of(context);
     final canPlay = track.hasVerifiedPlayback;
+    final isCurrent = controller.currentTrack?.id == track.id;
+    final isBusy = isCurrent && controller.isLoading;
+    final isPlaying = isCurrent && controller.isPlaying;
+    final isSaved = controller.isSaved(track);
+    final isQueued = controller.queue.any((item) => item.id == track.id);
+
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          track.isPreview ? 'Live catalog preview' : 'Featured signal',
-          style: Theme.of(context).textTheme.labelMedium,
+          track.isPreview ? 'Catalog preview' : 'Featured signal',
+          style: theme.textTheme.labelMedium,
         ),
         const SizedBox(height: 8),
         Text(
           track.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.headlineSmall,
+          style: theme.textTheme.headlineMedium,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           track.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium,
+          style: theme.textTheme.titleMedium,
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 6),
         Text(
-          '${track.album}  /  ${_sourceLabel(track)}  /  ${_formatDuration(track.duration)}',
+          '${track.album}  /  ${_sourceLabel(track)}  /  '
+          '${track.isPreview ? 'Preview' : 'Full track'}  /  '
+          '${_formatDuration(track.duration)}',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: theme.textTheme.bodySmall,
         ),
-        const SizedBox(height: 14),
-        AdaptivePrimaryButton(
-          label: canPlay
-              ? (isCurrent && controller.isPlaying ? 'Pause' : 'Play signal')
-              : 'Unavailable',
-          icon: canPlay
-              ? (isCurrent && controller.isPlaying
-                  ? Icons.pause
-                  : Icons.play_arrow)
-              : Icons.block,
-          isLoading: controller.isLoading && isCurrent,
-          onPressed: canPlay
-              ? () {
-                  if (isCurrent) {
-                    controller.togglePlayback();
-                  } else {
-                    controller.playTrack(track, queue: controller.featured);
-                  }
-                }
-              : null,
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            AdaptivePrimaryButton(
+              label: canPlay
+                  ? (isBusy ? 'Loading' : (isPlaying ? 'Pause' : 'Play'))
+                  : 'Unavailable',
+              icon: canPlay
+                  ? (isPlaying ? Icons.pause : Icons.play_arrow)
+                  : Icons.block,
+              isLoading: isBusy,
+              onPressed: canPlay
+                  ? () {
+                      if (isCurrent) {
+                        controller.togglePlayback();
+                      } else {
+                        controller.playTrack(
+                          track,
+                          queue: controller.featured,
+                        );
+                      }
+                    }
+                  : null,
+            ),
+            TextButton(
+              onPressed: () => controller.toggleLibrary(track),
+              child: Text(isSaved ? 'Saved' : 'Save'),
+            ),
+            TextButton(
+              onPressed: isQueued || !canPlay
+                  ? null
+                  : () => controller.addToQueue(track),
+              child: Text(isQueued ? 'Queued' : 'Queue'),
+            ),
+          ],
         ),
       ],
     );
 
     return AdaptiveContentCard(
-      padding: const EdgeInsets.all(18),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final artwork = _Artwork(track: track, size: 124, radius: 16);
-          if (constraints.maxWidth < 560) {
+          final artworkSize = constraints.maxWidth < 480 ? 104.0 : 132.0;
+          final artwork = Semantics(
+            image: true,
+            label: 'Artwork for ${track.title}',
+            child: _Artwork(track: track, size: artworkSize, radius: 18),
+          );
+
+          if (constraints.maxWidth < 420) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 artwork,
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 details,
               ],
             );
           }
 
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               artwork,
-              const SizedBox(width: 18),
+              const SizedBox(width: 20),
               Expanded(child: details),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _DiscoverEmptyState extends StatelessWidget {
+  const _DiscoverEmptyState({
+    required this.isBrowsing,
+    required this.label,
+    required this.hasError,
+    required this.onClear,
+    required this.onRetry,
+  });
+
+  final bool isBrowsing;
+  final String label;
+  final bool hasError;
+  final VoidCallback onClear;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isBrowsing) {
+      return _EmptyState(
+        icon: Icons.search_off,
+        title: 'Nothing matches "$label"',
+        message: 'Try a different mood, or search for an artist or album.',
+        action: TextButton.icon(
+          onPressed: onClear,
+          icon: const Icon(Icons.close, size: 20),
+          label: const Text('Clear search'),
+        ),
+      );
+    }
+
+    return _EmptyState(
+      icon: hasError ? Icons.cloud_off : Icons.graphic_eq,
+      title: hasError
+          ? 'The catalog did not load'
+          : 'The catalog is quiet right now',
+      message: hasError
+          ? 'Clostel could not reach the public adapters. The banner above has '
+              'the details.'
+          : 'No public adapter returned any tracks. Loading again is usually '
+              'enough.',
+      action: OutlinedButton.icon(
+        onPressed: onRetry,
+        icon: const Icon(Icons.refresh, size: 20),
+        label: const Text('Try again'),
       ),
     );
   }
@@ -1471,12 +1817,19 @@ class _ArtworkFallback extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState(
-      {required this.icon, required this.title, required this.message});
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+  });
 
   final IconData icon;
   final String title;
   final String message;
+
+  /// Optional recovery affordance, e.g. clearing a search or retrying a load.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -1497,6 +1850,10 @@ class _EmptyState extends StatelessWidget {
             Text(message,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium),
+            if (action != null) ...[
+              const SizedBox(height: 18),
+              action!,
+            ],
           ],
         ),
       ),
@@ -1529,28 +1886,49 @@ class _ErrorBanner extends StatelessWidget {
 }
 
 class _LoadingTracks extends StatelessWidget {
-  const _LoadingTracks();
+  const _LoadingTracks({this.count = 3});
+
+  final int count;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final palette = AppPalette.of(context);
+
     return Column(
-      children: List.generate(
-        3,
-        (index) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Card(
-            color: Theme.of(context).colorScheme.surface,
+      children: [
+        for (var index = 0; index < count; index++)
+          Card(
+            color: colorScheme.surface,
             child: ListTile(
-              leading: const SizedBox(width: 54, height: 54),
+              leading: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: palette.surfaceRaised,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               title: Container(
                 height: 14,
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                decoration: BoxDecoration(
+                  color: palette.surfaceRaised,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-              subtitle: const SizedBox(height: 8),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: palette.surfaceRaised.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
