@@ -170,4 +170,17 @@ void main() {
     expect(audioWithoutBase!.streamUrl, isNull);
     expect(audioWithoutBase.playbackKind, PlaybackKind.unknown);
   });
+
+  test('keeps the prepared identity when the response id disagrees', () {
+    final track = BhariyaMusicCatalog.parseFetchResponse(
+      {
+        'ID': 'other-song',
+        'SONG_NAME': 'Mismatched response',
+      },
+      preparedId: 'prepared-song',
+    );
+
+    expect(track, isNotNull);
+    expect(track!.id, 'bhariya-prepared-song');
+  });
 }

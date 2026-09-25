@@ -201,15 +201,17 @@ class BhariyaMusicCatalog implements MusicCatalog {
     String? audioBaseUrl,
   }) {
     final payload = _payloadMap(json) ?? json;
-    final id = _firstSafeId(
-        payload,
-        const [
-          'ID',
-          'id',
-          'song_id',
-          'songId',
-        ],
-        fallback: preparedId);
+    final responseId = _string(_field(payload, const [
+      'ID',
+      'id',
+      'song_id',
+      'songId',
+    ]));
+    final id = preparedId != null && _isSafeId(preparedId)
+        ? preparedId
+        : _isSafeId(responseId)
+            ? responseId
+            : null;
     if (id == null) {
       return null;
     }
@@ -358,18 +360,6 @@ class BhariyaMusicCatalog implements MusicCatalog {
       }
     }
     return null;
-  }
-
-  static String? _firstSafeId(
-    Map<String, dynamic> json,
-    List<String> keys, {
-    String? fallback,
-  }) {
-    final value = _string(_field(json, keys));
-    if (_isSafeId(value)) {
-      return value;
-    }
-    return fallback != null && _isSafeId(fallback) ? fallback : null;
   }
 
   static String? _firstSafeUrl(

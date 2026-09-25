@@ -18,6 +18,7 @@ void main() {
     await controller.loadFeatured();
     await controller.playTrack(DemoMusicCatalog.tracks.first,
         queue: DemoMusicCatalog.tracks);
+    await Future<void>.delayed(Duration.zero);
 
     expect(controller.currentTrack?.title, 'Night Transit');
     expect(controller.isPlaying, isTrue);
@@ -45,6 +46,7 @@ void main() {
     expect(controller.snapshot.status, PlaybackStatus.idle);
 
     await controller.playTrack(track, queue: [track]);
+    await Future<void>.delayed(Duration.zero);
 
     expect(controller.status, PlaybackStatus.playing);
     expect(controller.snapshot.status, PlaybackStatus.playing);
@@ -99,7 +101,7 @@ void main() {
 
     expect(controller.status, PlaybackStatus.failed);
     expect(controller.snapshot.status, PlaybackStatus.failed);
-    expect(controller.snapshot.currentTrack, isNull);
+    expect(controller.snapshot.currentTrack, same(track));
     expect(controller.snapshot.queue, [track]);
     expect(controller.error, isNotNull);
   });
@@ -149,6 +151,7 @@ void main() {
     addTearDown(controller.dispose);
 
     await controller.playTrack(first, queue: [first, third]);
+    await Future<void>.delayed(Duration.zero);
     controller.playNext(second);
     controller.addToQueue(fourth);
     controller.addToQueue(second);
@@ -164,6 +167,7 @@ void main() {
     expect(controller.hasNext, isTrue);
 
     await controller.skipNext();
+    await Future<void>.delayed(Duration.zero);
     expect(controller.currentTrack, same(third));
     expect(controller.queue, [third, fourth]);
 
@@ -172,6 +176,23 @@ void main() {
     expect(controller.currentTrack, same(third));
     expect(controller.hasNext, isFalse);
     expect(controller.status, PlaybackStatus.playing);
+  });
+
+  test('play next moves an already queued track', () async {
+    final playback = FakePlaybackService();
+    final first = DemoMusicCatalog.tracks[0];
+    final second = DemoMusicCatalog.tracks[1];
+    final third = DemoMusicCatalog.tracks[2];
+    final controller = PlayerController(
+      catalog: DemoMusicCatalog(),
+      playback: playback,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.playTrack(first, queue: [first, second, third]);
+    controller.playNext(third);
+
+    expect(controller.queue, [first, third, second]);
   });
 
   test('library saves and removes tracks without changing the queue', () async {

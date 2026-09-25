@@ -65,6 +65,9 @@ class PlayerController extends ChangeNotifier {
     });
     _completedSubscription = _playback.completedStream.listen((completed) {
       if (completed) {
+        _isPlaying = false;
+        _status = PlaybackStatus.ended;
+        _notify();
         unawaited(skipNext());
       }
     });
@@ -224,11 +227,6 @@ class PlayerController extends ChangeNotifier {
         return;
       }
       await _playback.play();
-      if (request != _playRequest) {
-        return;
-      }
-      _isPlaying = true;
-      _status = PlaybackStatus.playing;
     });
     _playbackTail = operation.catchError((Object _) {});
 
@@ -238,9 +236,8 @@ class PlayerController extends ChangeNotifier {
       if (request != _playRequest) {
         return;
       }
-      _currentTrack = null;
       _position = Duration.zero;
-      _duration = Duration.zero;
+      _duration = track.duration;
       _isPlaying = false;
       _status = PlaybackStatus.failed;
       _error = 'This track could not be played.';
@@ -346,16 +343,26 @@ class PlayerController extends ChangeNotifier {
   }
 
   void playNext(Track track) {
-    if (_queue.any((queuedTrack) => queuedTrack.id == track.id)) {
+    final current = _currentTrack;
+    if (current != null && current.id == track.id) {
       return;
     }
 
-    final current = _currentTrack;
+    final existingIndex = _queue.indexWhere(
+      (queuedTrack) => queuedTrack.id == track.id,
+    );
+    final updatedQueue = [..._queue];
+    if (existingIndex >= 0) {
+      updatedQueue.removeAt(existingIndex);
+    }
+
     final currentIndex = current == null
         ? -1
-        : _queue.indexWhere((queuedTrack) => queuedTrack.id == current.id);
+        : updatedQueue.indexWhere(
+            (queuedTrack) => queuedTrack.id == current.id,
+          );
     final insertionIndex = currentIndex < 0 ? 0 : currentIndex + 1;
-    final updatedQueue = [..._queue]..insert(insertionIndex, track);
+    updatedQueue.insert(insertionIndex, track);
     _queue = List<Track>.unmodifiable(updatedQueue);
     _notify();
   }
