@@ -1,7 +1,19 @@
+import 'dart:async';
+
 import 'package:just_audio/just_audio.dart';
 
 import '../models/track.dart';
 import 'track_file_resolver.dart';
+
+enum PlaybackStatus {
+  idle,
+  loading,
+  buffering,
+  playing,
+  paused,
+  failed,
+  ended,
+}
 
 abstract interface class PlaybackService {
   Stream<Duration> get positionStream;
@@ -9,6 +21,8 @@ abstract interface class PlaybackService {
   Stream<Duration?> get durationStream;
 
   Stream<bool> get playingStream;
+
+  Stream<PlaybackStatus> get statusStream;
 
   Stream<bool> get completedStream;
 
@@ -24,7 +38,8 @@ abstract interface class PlaybackService {
 }
 
 class JustAudioPlaybackService implements PlaybackService {
-  JustAudioPlaybackService({Iterable<TrackFileResolver> fileResolvers = const []})
+  JustAudioPlaybackService(
+      {Iterable<TrackFileResolver> fileResolvers = const []})
       : _player = AudioPlayer(),
         _fileResolvers = List<TrackFileResolver>.unmodifiable(fileResolvers);
 
@@ -42,6 +57,28 @@ class JustAudioPlaybackService implements PlaybackService {
       _player.playerStateStream.map((state) => state.playing);
 
   @override
+  Stream<PlaybackStatus> get statusStream =>
+      Stream<PlaybackStatus>.multi((controller) {
+        final playerStateSubscription = _player.playerStateStream.listen(
+          (state) {
+            controller.add(_statusFromPlayerState(state));
+          },
+          onDone: controller.close,
+        );
+        final errorSubscription = _player.errorStream.listen(
+          (_) {
+            controller.add(PlaybackStatus.failed);
+          },
+          onDone: controller.close,
+        );
+
+        controller.onCancel = () async {
+          await playerStateSubscription.cancel();
+          await errorSubscription.cancel();
+        };
+      }).distinct();
+
+  @override
   Stream<bool> get completedStream => _player.playerStateStream
       .map((state) => state.processingState == ProcessingState.completed)
       .distinct();
@@ -49,7 +86,8 @@ class JustAudioPlaybackService implements PlaybackService {
   @override
   Future<void> load(Track track) async {
     if (track.playbackKind == PlaybackKind.unknown) {
-      throw StateError('This provider does not expose a verified playback file.');
+      throw StateError(
+          'This provider does not expose a verified playback file.');
     }
 
     var filePath = track.filePath;
@@ -74,7 +112,14 @@ class JustAudioPlaybackService implements PlaybackService {
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() {
+    // just_audio's play future lives until playback pauses or completes. The
+    // service exposes a command instead, while statusStream reports later
+    // failures and completion independently.
+    final playback = _player.play();
+    unawaited(playback.catchError((Object _) {}));
+    return Future<void>.value();
+  }
 
   @override
   Future<void> pause() => _player.pause();
@@ -89,4 +134,15 @@ class JustAudioPlaybackService implements PlaybackService {
       await resolver.dispose();
     }
   }
+}
+
+PlaybackStatus _statusFromPlayerState(PlayerState state) {
+  return switch (state.processingState) {
+    ProcessingState.idle => PlaybackStatus.idle,
+    ProcessingState.loading => PlaybackStatus.loading,
+    ProcessingState.buffering => PlaybackStatus.buffering,
+    ProcessingState.ready =>
+      state.playing ? PlaybackStatus.playing : PlaybackStatus.paused,
+    ProcessingState.completed => PlaybackStatus.ended,
+  };
 }

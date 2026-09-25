@@ -7,6 +7,33 @@ import '../../core/services/music_catalog.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/playback_service.dart';
 
+@immutable
+class PlayerSnapshot {
+  PlayerSnapshot({
+    required this.status,
+    required this.currentTrack,
+    required List<Track> queue,
+    required this.position,
+    required this.duration,
+    required this.isPlaying,
+    required this.isLoading,
+    required this.error,
+    required this.hasNext,
+    required this.hasPrevious,
+  }) : queue = List<Track>.unmodifiable(queue);
+
+  final PlaybackStatus status;
+  final Track? currentTrack;
+  final List<Track> queue;
+  final Duration position;
+  final Duration duration;
+  final bool isPlaying;
+  final bool isLoading;
+  final String? error;
+  final bool hasNext;
+  final bool hasPrevious;
+}
+
 class PlayerController extends ChangeNotifier {
   PlayerController({
     required MusicCatalog catalog,
@@ -25,6 +52,13 @@ class PlayerController extends ChangeNotifier {
         _notify();
       }
     });
+    _statusSubscription = _playback.statusStream.listen((status) {
+      if (_status == status) {
+        return;
+      }
+      _status = status;
+      _notify();
+    });
     _playingSubscription = _playback.playingStream.listen((playing) {
       _isPlaying = playing;
       _notify();
@@ -42,6 +76,7 @@ class PlayerController extends ChangeNotifier {
 
   late final StreamSubscription<Duration> _positionSubscription;
   late final StreamSubscription<Duration?> _durationSubscription;
+  late final StreamSubscription<PlaybackStatus> _statusSubscription;
   late final StreamSubscription<bool> _playingSubscription;
   late final StreamSubscription<bool> _completedSubscription;
 
@@ -52,6 +87,7 @@ class PlayerController extends ChangeNotifier {
   Track? _currentTrack;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  PlaybackStatus _status = PlaybackStatus.idle;
   bool _isPlaying = false;
   bool _isLoading = false;
   bool _isSearching = false;
@@ -70,11 +106,25 @@ class PlayerController extends ChangeNotifier {
   Track? get currentTrack => _currentTrack;
   Duration get position => _position;
   Duration get duration => _duration;
+  PlaybackStatus get status => _status;
   bool get isPlaying => _isPlaying;
   bool get isLoading => _isLoading;
   bool get isSearching => _isSearching;
   bool get isImportingLibrary => _isImportingLibrary;
   String? get error => _error;
+
+  PlayerSnapshot get snapshot => PlayerSnapshot(
+        status: _status,
+        currentTrack: _currentTrack,
+        queue: _queue,
+        position: _position,
+        duration: _duration,
+        isPlaying: _isPlaying,
+        isLoading: _isLoading,
+        error: _error,
+        hasNext: hasNext,
+        hasPrevious: hasPrevious,
+      );
 
   bool isSaved(Track track) => _library.any((item) => item.id == track.id);
 
@@ -83,8 +133,8 @@ class PlayerController extends ChangeNotifier {
     if (current == null || _queue.isEmpty) {
       return false;
     }
-    return _queue.indexWhere((track) => track.id == current.id) <
-        _queue.length - 1;
+    final currentIndex = _queue.indexWhere((track) => track.id == current.id);
+    return currentIndex < 0 || currentIndex < _queue.length - 1;
   }
 
   bool get hasPrevious {
@@ -160,6 +210,7 @@ class PlayerController extends ChangeNotifier {
     _currentTrack = track;
     _position = Duration.zero;
     _duration = track.duration;
+    _status = PlaybackStatus.loading;
     _isLoading = true;
     _error = null;
     _notify();
@@ -173,6 +224,11 @@ class PlayerController extends ChangeNotifier {
         return;
       }
       await _playback.play();
+      if (request != _playRequest) {
+        return;
+      }
+      _isPlaying = true;
+      _status = PlaybackStatus.playing;
     });
     _playbackTail = operation.catchError((Object _) {});
 
@@ -186,6 +242,7 @@ class PlayerController extends ChangeNotifier {
       _position = Duration.zero;
       _duration = Duration.zero;
       _isPlaying = false;
+      _status = PlaybackStatus.failed;
       _error = 'This track could not be played.';
       _notify();
     } finally {
@@ -216,6 +273,7 @@ class PlayerController extends ChangeNotifier {
         await _playback.play();
       }
     } catch (_) {
+      _status = PlaybackStatus.failed;
       _error = 'Playback controls are unavailable right now.';
       _notify();
     }
@@ -227,8 +285,9 @@ class PlayerController extends ChangeNotifier {
       return;
     }
 
-    final index = _queue.indexWhere((track) => track.id == current.id);
-    await playTrack(_queue[index + 1]);
+    final currentIndex = _queue.indexWhere((track) => track.id == current.id);
+    final nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+    await playTrack(_queue[nextIndex]);
   }
 
   Future<void> skipPrevious() async {
@@ -251,9 +310,54 @@ class PlayerController extends ChangeNotifier {
     try {
       await _playback.seek(value);
     } catch (_) {
+      _status = PlaybackStatus.failed;
       _error = 'Could not move the playback position.';
       _notify();
     }
+  }
+
+  /// Clears queued tracks without interrupting the currently loaded track.
+  void clearQueue() {
+    if (_queue.isEmpty) {
+      return;
+    }
+    _queue = const [];
+    _notify();
+  }
+
+  /// Removes matching queued tracks without interrupting current playback.
+  void removeFromQueue(Track track) {
+    final updatedQueue = _queue
+        .where((queuedTrack) => queuedTrack.id != track.id)
+        .toList(growable: false);
+    if (updatedQueue.length == _queue.length) {
+      return;
+    }
+    _queue = List<Track>.unmodifiable(updatedQueue);
+    _notify();
+  }
+
+  void addToQueue(Track track) {
+    if (_queue.any((queuedTrack) => queuedTrack.id == track.id)) {
+      return;
+    }
+    _queue = List<Track>.unmodifiable([..._queue, track]);
+    _notify();
+  }
+
+  void playNext(Track track) {
+    if (_queue.any((queuedTrack) => queuedTrack.id == track.id)) {
+      return;
+    }
+
+    final current = _currentTrack;
+    final currentIndex = current == null
+        ? -1
+        : _queue.indexWhere((queuedTrack) => queuedTrack.id == current.id);
+    final insertionIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+    final updatedQueue = [..._queue]..insert(insertionIndex, track);
+    _queue = List<Track>.unmodifiable(updatedQueue);
+    _notify();
   }
 
   Future<void> importLocalTracks() async {
@@ -311,6 +415,7 @@ class PlayerController extends ChangeNotifier {
     _searchDebounce?.cancel();
     _positionSubscription.cancel();
     _durationSubscription.cancel();
+    _statusSubscription.cancel();
     _playingSubscription.cancel();
     _completedSubscription.cancel();
     unawaited(_playback.dispose());
