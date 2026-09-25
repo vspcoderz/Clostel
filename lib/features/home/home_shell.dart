@@ -249,10 +249,10 @@ class _PageIntro extends StatelessWidget {
           ),
         ),
         if (controller.currentTrack != null)
-          Chip(
-            avatar: const Icon(Icons.graphic_eq, size: 16),
-            label: const Text('Now playing'),
-            side: const BorderSide(color: AppTheme.line),
+          const Chip(
+            avatar: Icon(Icons.graphic_eq, size: 16),
+            label: Text('Now playing'),
+            side: BorderSide(color: AppTheme.line),
             backgroundColor: AppTheme.surface,
           ),
       ],
@@ -622,7 +622,7 @@ class _Artwork extends StatelessWidget {
       ),
       child: Icon(
         Icons.graphic_eq,
-        color: AppTheme.background.withOpacity(0.82),
+        color: AppTheme.background.withValues(alpha: 0.82),
         size: size * 0.42,
       ),
     );

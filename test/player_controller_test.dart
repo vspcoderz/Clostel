@@ -15,17 +15,17 @@ void main() {
     addTearDown(controller.dispose);
 
     await controller.loadFeatured();
-    await controller.playTrack(catalog.tracks.first, queue: catalog.tracks);
+    await controller.playTrack(DemoMusicCatalog.tracks.first, queue: DemoMusicCatalog.tracks);
 
     expect(controller.currentTrack?.title, 'Night Transit');
     expect(controller.isPlaying, isTrue);
-    expect(playback.loaded, [catalog.tracks.first]);
+    expect(playback.loaded, [DemoMusicCatalog.tracks.first]);
     expect(controller.hasNext, isTrue);
 
     await controller.skipNext();
 
     expect(controller.currentTrack?.title, 'Amber Static');
-    expect(playback.loaded, [catalog.tracks.first, catalog.tracks[1]]);
+    expect(playback.loaded, [DemoMusicCatalog.tracks.first, DemoMusicCatalog.tracks[1]]);
     expect(controller.isPlaying, isTrue);
   });
 
@@ -50,7 +50,7 @@ void main() {
     final controller = PlayerController(catalog: catalog, playback: playback);
     addTearDown(controller.dispose);
 
-    await controller.playTrack(catalog.tracks.first, queue: catalog.tracks);
+    await controller.playTrack(DemoMusicCatalog.tracks.first, queue: DemoMusicCatalog.tracks);
     playback.completed.add(true);
     await Future<void>.delayed(Duration.zero);
 
@@ -63,11 +63,11 @@ void main() {
     final controller = PlayerController(catalog: catalog, playback: playback);
     addTearDown(controller.dispose);
 
-    controller.toggleLibrary(catalog.tracks.first);
-    expect(controller.library, [catalog.tracks.first]);
+    controller.toggleLibrary(DemoMusicCatalog.tracks.first);
+    expect(controller.library, [DemoMusicCatalog.tracks.first]);
     expect(controller.queue, isEmpty);
 
-    controller.toggleLibrary(catalog.tracks.first);
+    controller.toggleLibrary(DemoMusicCatalog.tracks.first);
     expect(controller.library, isEmpty);
   });
 }

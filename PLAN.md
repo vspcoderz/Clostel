@@ -31,4 +31,4 @@ Build a playable cross-platform music-app slice with a distinctive Clostel inter
 
 ## Status
 
-Implemented. Source-level checks pass; `flutter analyze` and `flutter test` are pending because Flutter is not installed in this environment.
+Implemented. Flutter 3.47.5 analysis and tests pass; the Linux debug build launches successfully on the connected Linux desktop.

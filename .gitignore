@@ -6,5 +6,6 @@ build/
 coverage/
 .idea/
 .vscode/
+.flutter-plugins-dependencies
 *.iml
 .DS_Store

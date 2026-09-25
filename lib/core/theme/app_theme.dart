@@ -115,13 +115,13 @@ class AppTheme {
         activeTrackColor: accent,
         inactiveTrackColor: line,
         thumbColor: paper,
-        overlayColor: accent.withOpacity(0.12),
+        overlayColor: accent.withValues(alpha: 0.12),
         trackHeight: 3,
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: paper,
-          highlightColor: accent.withOpacity(0.12),
+          highlightColor: accent.withValues(alpha: 0.12),
         ),
       ),
     );

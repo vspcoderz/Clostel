@@ -21,7 +21,7 @@ class AdaptiveGlassScope extends StatelessWidget {
     }
 
     return LiquidGlassBackdropGroup(
-      settings: const LiquidGlassSettings.matteDark,
+      settings: LiquidGlassSettings.matteDark,
       child: child,
     );
   }
