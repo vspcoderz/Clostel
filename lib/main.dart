@@ -36,6 +36,10 @@ Future<void> main() async {
       'DISCORD_APPLICATION_ID',
       defaultValue: _defaultDiscordApplicationId,
     ),
+    startEnabled: const String.fromEnvironment(
+          'DISCORD_PRESENCE_ENABLED',
+        ).trim().toLowerCase() ==
+        'true',
   );
   final ytDlpPath = const String.fromEnvironment('YT_DLP_PATH').trim();
   final fileResolvers = <TrackFileResolver>[];

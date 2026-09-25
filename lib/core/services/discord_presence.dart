@@ -6,13 +6,16 @@ import 'package:flutter/foundation.dart';
 import '../models/track.dart';
 
 class DiscordPresenceService {
-  DiscordPresenceService({required this.applicationId});
+  DiscordPresenceService({
+    required this.applicationId,
+    bool startEnabled = false,
+  }) : _userEnabled = startEnabled;
 
   final String? applicationId;
   Client? _client;
   Track? _lastTrack;
   bool _lastIsPlaying = false;
-  bool _userEnabled = true;
+  bool _userEnabled;
   DateTime? _nextConnectAttempt;
 
   bool get isConfigured {

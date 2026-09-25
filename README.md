@@ -71,11 +71,12 @@ flutter run -d linux \
 
 Audio mode is an operator-controlled experiment, not a production music source. Clostel does not send cookies, database credentials, Spotify credentials, or bearer tokens to the service. Verify the service license, music rights, privacy policy, and terms before enabling it. The integration audit is in `docs/research/bhariyamusic-integration.md`.
 
-Discord Rich Presence uses the bundled Clostel application ID. To override it:
+Discord Rich Presence is opt-in and disabled at startup so a missing Discord IPC socket cannot destabilize the player. Enable it from Settings, or start with:
 
 ```bash
 flutter run -d linux \
-  --dart-define=DISCORD_APPLICATION_ID=your_application_id
+  --dart-define=DISCORD_APPLICATION_ID=your_application_id \
+  --dart-define=DISCORD_PRESENCE_ENABLED=true
 ```
 
 The application ID is not a secret. Never put Discord tokens or other credentials in this repository.
