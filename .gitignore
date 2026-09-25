@@ -1,0 +1,10 @@
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+.idea/
+.vscode/
+*.iml
+.DS_Store

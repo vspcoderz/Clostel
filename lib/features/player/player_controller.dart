@@ -1,0 +1,259 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../../core/models/track.dart';
+import '../../core/services/music_catalog.dart';
+import '../../core/services/playback_service.dart';
+
+class PlayerController extends ChangeNotifier {
+  PlayerController({
+    required MusicCatalog catalog,
+    required PlaybackService playback,
+  })  : _catalog = catalog,
+        _playback = playback {
+    _positionSubscription = _playback.positionStream.listen((position) {
+      _position = position;
+      notifyListeners();
+    });
+    _durationSubscription = _playback.durationStream.listen((duration) {
+      if (duration != null) {
+        _duration = duration;
+        notifyListeners();
+      }
+    });
+    _playingSubscription = _playback.playingStream.listen((playing) {
+      _isPlaying = playing;
+      notifyListeners();
+    });
+    _completedSubscription = _playback.completedStream.listen((completed) {
+      if (completed) {
+        unawaited(skipNext());
+      }
+    });
+  }
+
+  final MusicCatalog _catalog;
+  final PlaybackService _playback;
+
+  late final StreamSubscription<Duration> _positionSubscription;
+  late final StreamSubscription<Duration?> _durationSubscription;
+  late final StreamSubscription<bool> _playingSubscription;
+  late final StreamSubscription<bool> _completedSubscription;
+
+  List<Track> _featured = const [];
+  List<Track> _searchResults = const [];
+  List<Track> _queue = const [];
+  List<Track> _library = const [];
+  Track? _currentTrack;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _isPlaying = false;
+  bool _isLoading = false;
+  bool _isSearching = false;
+  int _searchRequest = 0;
+  int _playRequest = 0;
+  String? _error;
+
+  List<Track> get featured => _featured;
+  List<Track> get searchResults => _searchResults;
+  List<Track> get queue => _queue;
+  List<Track> get library => _library;
+  Track? get currentTrack => _currentTrack;
+  Duration get position => _position;
+  Duration get duration => _duration;
+  bool get isPlaying => _isPlaying;
+  bool get isLoading => _isLoading;
+  bool get isSearching => _isSearching;
+  String? get error => _error;
+
+  bool isSaved(Track track) => _library.any((item) => item.id == track.id);
+
+  bool get hasNext {
+    final current = _currentTrack;
+    if (current == null || _queue.isEmpty) {
+      return false;
+    }
+    return _queue.indexWhere((track) => track.id == current.id) <
+        _queue.length - 1;
+  }
+
+  bool get hasPrevious {
+    final current = _currentTrack;
+    if (current == null || _queue.isEmpty) {
+      return false;
+    }
+    return _queue.indexWhere((track) => track.id == current.id) > 0;
+  }
+
+  Future<void> loadFeatured() async {
+    if (_featured.isNotEmpty || _isLoading) {
+      return;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _featured = await _catalog.getFeatured();
+      if (_searchRequest == 0) {
+        _searchResults = _featured;
+      }
+    } catch (_) {
+      _error = 'Could not load the catalog. Try again.';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> search(String query) async {
+    final request = ++_searchRequest;
+    _isSearching = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final results = await _catalog.search(query);
+      if (request == _searchRequest) {
+        _searchResults = results;
+      }
+    } catch (_) {
+      if (request == _searchRequest) {
+        _error = 'Search is unavailable right now.';
+      }
+    } finally {
+      if (request == _searchRequest) {
+        _isSearching = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> playTrack(Track track, {List<Track>? queue}) async {
+    final request = ++_playRequest;
+
+    if (queue != null) {
+      _queue = List<Track>.unmodifiable(queue);
+    } else if (!_queue.any((item) => item.id == track.id)) {
+      _queue = List<Track>.unmodifiable([..._queue, track]);
+    }
+
+    _currentTrack = track;
+    _position = Duration.zero;
+    _duration = track.duration;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _playback.load(track);
+      if (request != _playRequest) {
+        return;
+      }
+      await _playback.play();
+    } catch (_) {
+      if (request != _playRequest) {
+        return;
+      }
+      _currentTrack = null;
+      _position = Duration.zero;
+      _duration = Duration.zero;
+      _isPlaying = false;
+      _error = 'This track could not be played.';
+      notifyListeners();
+    } finally {
+      if (request == _playRequest) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> togglePlayback() async {
+    if (_isLoading) {
+      return;
+    }
+
+    final current = _currentTrack;
+    if (current == null) {
+      if (_featured.isNotEmpty) {
+        await playTrack(_featured.first, queue: _featured);
+      }
+      return;
+    }
+
+    try {
+      if (_isPlaying) {
+        await _playback.pause();
+      } else {
+        await _playback.play();
+      }
+    } catch (_) {
+      _error = 'Playback controls are unavailable right now.';
+      notifyListeners();
+    }
+  }
+
+  Future<void> skipNext() async {
+    final current = _currentTrack;
+    if (current == null || !hasNext) {
+      return;
+    }
+
+    final index = _queue.indexWhere((track) => track.id == current.id);
+    await playTrack(_queue[index + 1]);
+  }
+
+  Future<void> skipPrevious() async {
+    final current = _currentTrack;
+    if (current == null || _queue.isEmpty) {
+      return;
+    }
+
+    if (_position > const Duration(seconds: 3)) {
+      await seek(Duration.zero);
+      return;
+    }
+
+    final index = _queue.indexWhere((track) => track.id == current.id);
+    final previousIndex = index > 0 ? index - 1 : _queue.length - 1;
+    await playTrack(_queue[previousIndex]);
+  }
+
+  Future<void> seek(Duration value) async {
+    try {
+      await _playback.seek(value);
+    } catch (_) {
+      _error = 'Could not move the playback position.';
+      notifyListeners();
+    }
+  }
+
+  void toggleLibrary(Track track) {
+    if (isSaved(track)) {
+      _library = List<Track>.unmodifiable(
+        _library.where((item) => item.id != track.id),
+      );
+    } else {
+      _library = List<Track>.unmodifiable([..._library, track]);
+    }
+    notifyListeners();
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription.cancel();
+    _durationSubscription.cancel();
+    _playingSubscription.cancel();
+    _completedSubscription.cancel();
+    unawaited(_playback.dispose());
+    super.dispose();
+  }
+}
