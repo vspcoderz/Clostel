@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -77,12 +78,6 @@ Future<void> main() async {
     catalogSources.insert(0, YtDlpMusicCatalog(runner: searchRunner));
     fileResolvers.add(YtDlpAudioResolver(runner: downloadRunner));
   }
-  try {
-    await discordPresence.initialize();
-  } catch (_) {
-    // Discord presence is optional; the music app still launches without it.
-  }
-
   final controller = PlayerController(
     catalog: ResilientMusicCatalog(
       primary: MusicCatalogChain(
@@ -95,6 +90,7 @@ Future<void> main() async {
     localMusic: const LocalMusicService(),
   );
   runApp(ClostelApp(controller: controller, discordPresence: discordPresence));
+  unawaited(discordPresence.initialize());
 }
 
 Future<String?> _resolveYtDlpExecutable() async {
