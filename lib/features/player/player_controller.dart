@@ -100,6 +100,7 @@ class PlayerController extends ChangeNotifier {
   bool _isSearching = false;
   bool _isImportingLibrary = false;
   final Set<String> _downloadingTrackIds = <String>{};
+  final Set<String> _downloadedTrackIds = <String>{};
   int _searchRequest = 0;
   int _playRequest = 0;
   bool _disposed = false;
@@ -124,9 +125,13 @@ class PlayerController extends ChangeNotifier {
   String? get error => _error;
   Set<String> get downloadingTrackIds =>
       Set<String>.unmodifiable(_downloadingTrackIds);
+  Set<String> get downloadedTrackIds =>
+      Set<String>.unmodifiable(_downloadedTrackIds);
   bool get isDownloading => _downloadingTrackIds.isNotEmpty;
+  bool canDownload(Track track) => _musicDownload?.supports(track) ?? false;
   bool isTrackDownloading(Track track) =>
       _downloadingTrackIds.contains(track.id);
+  bool isTrackDownloaded(Track track) => _downloadedTrackIds.contains(track.id);
   String? get downloadError => _downloadError;
   String? get lastDownloadedPath => _lastDownloadedPath;
 
@@ -436,6 +441,7 @@ class PlayerController extends ChangeNotifier {
     _notify();
     try {
       final path = await service.download(track);
+      _downloadedTrackIds.add(track.id);
       _lastDownloadedPath = path;
       return path;
     } on Object {

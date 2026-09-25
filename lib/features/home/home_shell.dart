@@ -270,8 +270,10 @@ class _SelectedPage extends StatelessWidget {
       1 => _LibraryView(controller: controller),
       2 => _QueueView(controller: controller),
       _ => _SettingsView(
+          controller: controller,
           discordConfigured: discordPresence.isConfigured,
           discordEnabled: discordEnabled,
+          discordConnectionState: discordPresence.connectionState,
           themeController: themeController,
           onDiscordChanged: onDiscordChanged,
         ),
@@ -409,6 +411,13 @@ class _DiscoverViewState extends State<_DiscoverView> {
                 _ErrorBanner(
                   message: controller.error!,
                   onDismiss: controller.clearError,
+                ),
+              ],
+              if (controller.downloadError != null) ...[
+                const SizedBox(height: 12),
+                _ErrorBanner(
+                  message: controller.downloadError!,
+                  onDismiss: controller.clearDownloadError,
                 ),
               ],
               const SizedBox(height: 20),
@@ -687,6 +696,9 @@ class _FeaturedHero extends StatelessWidget {
     final isPlaying = isCurrent && controller.isPlaying;
     final isSaved = controller.isSaved(track);
     final isQueued = controller.queue.any((item) => item.id == track.id);
+    final canDownload = controller.canDownload(track);
+    final isDownloading = controller.isTrackDownloading(track);
+    final isDownloaded = controller.isTrackDownloaded(track);
 
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,6 +767,19 @@ class _FeaturedHero extends StatelessWidget {
                   : () => controller.addToQueue(track),
               child: Text(isQueued ? 'Queued' : 'Queue'),
             ),
+            if (canDownload)
+              TextButton(
+                onPressed: isDownloaded || isDownloading
+                    ? null
+                    : () => controller.downloadTrack(track),
+                child: Text(
+                  isDownloaded
+                      ? 'Downloaded'
+                      : isDownloading
+                          ? 'Downloading'
+                          : 'Download',
+                ),
+              ),
           ],
         ),
       ],
@@ -859,6 +884,9 @@ class _TrackRow extends StatelessWidget {
     final canPlay = track.hasVerifiedPlayback;
     final playLabel = isCurrent && controller.isPlaying ? 'Pause' : 'Play';
     final colorScheme = Theme.of(context).colorScheme;
+    final canDownload = controller.canDownload(track);
+    final isDownloading = controller.isTrackDownloading(track);
+    final isDownloaded = controller.isTrackDownloaded(track);
 
     return Semantics(
       label: '${track.title} by ${track.artist}',
@@ -885,7 +913,8 @@ class _TrackRow extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isCurrent ? colorScheme.primary : colorScheme.onSurface,
+                  color:
+                      isCurrent ? colorScheme.primary : colorScheme.onSurface,
                 ),
           ),
           subtitle: Padding(
@@ -928,6 +957,8 @@ class _TrackRow extends StatelessWidget {
                 controller.addToQueue(track);
               } else if (action == 'next') {
                 controller.playNext(track);
+              } else if (action == 'download') {
+                controller.downloadTrack(track);
               } else if (action == 'save') {
                 controller.toggleLibrary(track);
               }
@@ -981,6 +1012,28 @@ class _TrackRow extends StatelessWidget {
                           'Add to queue: ${track.title}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (canDownload)
+                PopupMenuItem<String>(
+                  value: 'download',
+                  enabled: !isDownloading && !isDownloaded,
+                  child: Row(
+                    children: [
+                      Icon(isDownloaded
+                          ? Icons.download_done
+                          : Icons.download_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isDownloaded
+                              ? 'Downloaded'
+                              : isDownloading
+                                  ? 'Downloading'
+                                  : 'Download audio',
                         ),
                       ),
                     ],
@@ -1145,16 +1198,30 @@ class _TrackList extends StatelessWidget {
   }
 }
 
+String _discordStatusLabel(DiscordPresenceConnectionState state) {
+  return switch (state) {
+    DiscordPresenceConnectionState.disabled => 'Currently off.',
+    DiscordPresenceConnectionState.connecting => 'Connecting to Discord…',
+    DiscordPresenceConnectionState.connected => 'Connected to Discord.',
+    DiscordPresenceConnectionState.unavailable =>
+      'Discord is unavailable. Clostel will keep playing normally.',
+  };
+}
+
 class _SettingsView extends StatelessWidget {
   const _SettingsView({
+    required this.controller,
     required this.discordConfigured,
     required this.discordEnabled,
+    required this.discordConnectionState,
     required this.themeController,
     required this.onDiscordChanged,
   });
 
+  final PlayerController controller;
   final bool discordConfigured;
   final bool discordEnabled;
+  final DiscordPresenceConnectionState discordConnectionState;
   final ThemeModeController? themeController;
   final ValueChanged<bool> onDiscordChanged;
 
@@ -1175,7 +1242,7 @@ class _SettingsView extends StatelessWidget {
               title: const Text('Discord Rich Presence'),
               subtitle: Text(
                 discordConfigured
-                    ? 'Show the current track in your Discord profile.'
+                    ? _discordStatusLabel(discordConnectionState)
                     : 'Configure DISCORD_APPLICATION_ID to enable this.',
               ),
             ),
@@ -1196,6 +1263,39 @@ class _SettingsView extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
+            ),
+            const Divider(height: 1),
+            ExpansionTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Downloads & storage'),
+              subtitle: Text(
+                controller.downloadedTrackIds.isEmpty
+                    ? 'No downloaded tracks yet.'
+                    : '${controller.downloadedTrackIds.length} downloaded '
+                        'track${controller.downloadedTrackIds.length == 1 ? '' : 's'}.',
+              ),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Explicit yt-dlp downloads are saved in the Clostel application-data folder. Downloads are never created automatically when a track plays.',
+                    ),
+                  ),
+                ),
+                if (controller.lastDownloadedPath != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: SelectableText(
+                        'Last download: ${controller.lastDownloadedPath}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ),
               ],
             ),
             const Divider(height: 1),
@@ -1317,8 +1417,8 @@ class _NowPlayingPage extends StatelessWidget {
             ),
             body: DecoratedBox(
               decoration: BoxDecoration(
-          gradient: AppTheme.backgroundGradientFor(context),
-        ),
+                gradient: AppTheme.backgroundGradientFor(context),
+              ),
               child: SafeArea(
                 top: false,
                 child: track == null
@@ -1326,7 +1426,8 @@ class _NowPlayingPage extends StatelessWidget {
                         child: _EmptyState(
                           icon: Icons.album_outlined,
                           title: 'Nothing is playing yet',
-                          message: 'Choose a track from Discover to open the full player.',
+                          message:
+                              'Choose a track from Discover to open the full player.',
                         ),
                       )
                     : _NowPlayingContent(track: track, controller: controller),
@@ -1354,9 +1455,8 @@ class _NowPlayingContent extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 1120),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final artworkSize = constraints.maxWidth < 400
-                  ? constraints.maxWidth
-                  : 360.0;
+              final artworkSize =
+                  constraints.maxWidth < 400 ? constraints.maxWidth : 360.0;
               final artwork = Semantics(
                 image: true,
                 label: 'Artwork for ${track.title}',

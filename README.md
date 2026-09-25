@@ -63,6 +63,16 @@ flutter run -d linux \
 
 YouTube results are clearly attributed and should only be used where you have the necessary rights and permission. Do not use this path to bypass copyright, authentication, DRM, or a service's terms.
 
+### Explicit music downloads
+
+For yt-dlp results, open the track overflow menu and choose **Download audio**. Clostel saves an MP3 under the user application-data directory:
+
+- Linux: `~/.local/share/Clostel/downloads`
+- macOS: `~/Library/Application Support/Clostel/downloads`
+- Windows: `%APPDATA%\\Clostel\\downloads`
+
+Downloads are explicit, capped at 50 MiB, sanitized, and never happen automatically during playback. The downloader uses no cookies, tokens, DRM bypass flags, or private configuration files.
+
 ### Optional BhariyaMusic-compatible provider
 
 Clostel can optionally query a separately operated BhariyaMusic-compatible service. The service is not bundled, has no default endpoint, and is not used for featured content. Configure an operator-approved HTTPS base URL with a path prefix if needed:

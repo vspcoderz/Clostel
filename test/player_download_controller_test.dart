@@ -21,6 +21,7 @@ void main() {
 
     final operation = controller.downloadTrack(track);
 
+    expect(controller.canDownload(track), isTrue);
     expect(controller.isDownloading, isTrue);
     expect(controller.isTrackDownloading(track), isTrue);
     expect(controller.downloadingTrackIds, {track.id});
@@ -32,6 +33,8 @@ void main() {
     expect(controller.isDownloading, isFalse);
     expect(controller.downloadingTrackIds, isEmpty);
     expect(controller.lastDownloadedPath, endsWith('track.mp3'));
+    expect(controller.downloadedTrackIds, {track.id});
+    expect(controller.isTrackDownloaded(track), isTrue);
     expect(controller.downloadError, isNull);
   });
 
@@ -69,6 +72,7 @@ void main() {
       isNull,
     );
 
+    expect(controller.canDownload(DemoMusicCatalog.tracks.first), isFalse);
     expect(downloads.requested, isEmpty);
     expect(controller.isDownloading, isFalse);
     expect(controller.downloadError, 'This track cannot be downloaded.');
