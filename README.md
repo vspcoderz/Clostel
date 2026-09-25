@@ -52,7 +52,24 @@ flutter run -d linux \
   --dart-define=YT_DLP_PATH=/absolute/path/to/yt-dlp
 ```
 
-yt-dlp is not bundled. The adapter is an explicit desktop-only development/experimental path; it uses YouTube search metadata and downloads a temporary MP3 only when a yt-dlp track is played. It is not enabled on Android or iOS and must not be used to bypass copyright, authentication, DRM, or a service's terms. It is not a production catalog or download backend.
+### Optional BhariyaMusic-compatible provider
+
+Clostel can optionally query a separately operated BhariyaMusic-compatible service. The service is not bundled, has no default endpoint, and is not used for featured content. Configure an operator-approved HTTPS base URL with a path prefix if needed:
+
+```bash
+flutter run -d linux \
+  --dart-define=BHARIYA_MUSIC_API_BASE_URL=https://your-operator.example/music
+```
+
+The adapter is metadata-only by default. Experimental audio is disabled unless it is explicitly enabled as well:
+
+```bash
+flutter run -d linux \
+  --dart-define=BHARIYA_MUSIC_API_BASE_URL=https://your-operator.example/music \
+  --dart-define=BHARIYA_MUSIC_AUDIO_ENABLED=true
+```
+
+Audio mode is an operator-controlled experiment, not a production music source. Clostel does not send cookies, database credentials, Spotify credentials, or bearer tokens to the service. Verify the service license, music rights, privacy policy, and terms before enabling it. The integration audit is in `docs/research/bhariyamusic-integration.md`.
 
 Discord Rich Presence uses the bundled Clostel application ID. To override it:
 
