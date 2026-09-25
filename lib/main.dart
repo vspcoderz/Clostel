@@ -5,6 +5,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 import 'app.dart';
 import 'core/data/audius_catalog.dart';
+import 'core/data/bhariya_music_catalog.dart';
 import 'core/data/ccmixter_catalog.dart';
 import 'core/data/deezer_catalog.dart';
 import 'core/data/demo_catalog.dart';
@@ -51,6 +52,18 @@ Future<void> main() async {
     const DeezerMusicCatalog(),
     const ITunesMusicCatalog(),
   ];
+  final bhariyaMusicCatalog = BhariyaMusicCatalog(
+    apiBaseUrl: const String.fromEnvironment(
+      'BHARIYA_MUSIC_API_BASE_URL',
+    ),
+    audioEnabled: const String.fromEnvironment(
+          'BHARIYA_MUSIC_AUDIO_ENABLED',
+        ).trim().toLowerCase() ==
+        'true',
+  );
+  if (bhariyaMusicCatalog.isConfigured) {
+    catalogSources.add(bhariyaMusicCatalog);
+  }
   if (ytDlpPath.isNotEmpty &&
       (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
     final runner = ProcessYtDlpRunner(executable: ytDlpPath);
