@@ -21,7 +21,7 @@ class AdaptiveGlassScope extends StatelessWidget {
     }
 
     return LiquidGlassBackdropGroup(
-      settings: LiquidGlassSettings.matteDark,
+      settings: LiquidGlassSettings.matteLight,
       child: child,
     );
   }
@@ -68,18 +68,32 @@ class AdaptiveNavigationBar extends StatelessWidget {
               iosSystemImage: 'list.bullet',
               iosSelectedSystemImage: 'list.bullet',
             ),
+            LiquidGlassNavItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Settings',
+              iosSystemImage: 'gearshape',
+              iosSelectedSystemImage: 'gearshape.fill',
+            ),
           ],
         ),
       );
     }
 
     return NavigationBar(
+      backgroundColor: AppTheme.surface,
+      indicatorColor: AppTheme.accent.withValues(alpha: 0.18),
       selectedIndex: currentIndex,
       onDestinationSelected: onDestinationSelected,
       destinations: const [
-        NavigationDestination(icon: Icon(Icons.explore_outlined), label: 'Discover'),
-        NavigationDestination(icon: Icon(Icons.library_music_outlined), label: 'Library'),
-        NavigationDestination(icon: Icon(Icons.queue_music_outlined), label: 'Queue'),
+        NavigationDestination(
+            icon: Icon(Icons.explore_outlined), label: 'Discover'),
+        NavigationDestination(
+            icon: Icon(Icons.library_music_outlined), label: 'Library'),
+        NavigationDestination(
+            icon: Icon(Icons.queue_music_outlined), label: 'Queue'),
+        NavigationDestination(
+            icon: Icon(Icons.settings_outlined), label: 'Settings'),
       ],
     );
   }
@@ -99,7 +113,9 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return NavigationRail(
       extended: true,
-      minWidth: 220,
+      minWidth: 248,
+      backgroundColor: AppTheme.surface,
+      indicatorColor: AppTheme.accent.withValues(alpha: 0.18),
       selectedIndex: currentIndex,
       onDestinationSelected: onDestinationSelected,
       groupAlignment: -0.75,
@@ -114,7 +130,8 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
                 color: AppTheme.accent,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.graphic_eq, color: AppTheme.background, size: 22),
+              child: const Icon(Icons.graphic_eq,
+                  color: AppTheme.background, size: 22),
             ),
             const SizedBox(width: 11),
             Text(
@@ -143,7 +160,118 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
           selectedIcon: Icon(Icons.queue_music),
           label: Text('Queue'),
         ),
+        NavigationRailDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: Text('Settings'),
+        ),
       ],
+    );
+  }
+}
+
+class AdaptiveDesktopTabs extends StatefulWidget {
+  const AdaptiveDesktopTabs({
+    required this.currentIndex,
+    required this.onChanged,
+    super.key,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<AdaptiveDesktopTabs> createState() => _AdaptiveDesktopTabsState();
+}
+
+class _AdaptiveDesktopTabsState extends State<AdaptiveDesktopTabs>
+    with SingleTickerProviderStateMixin {
+  late final TabController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.currentIndex,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant AdaptiveDesktopTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentIndex != _controller.index) {
+      _controller.animateTo(widget.currentIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(bottom: BorderSide(color: AppTheme.line)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 190,
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.graphic_eq,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 11),
+                Text('clostel', style: Theme.of(context).textTheme.titleLarge),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBar(
+              controller: _controller,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              onTap: widget.onChanged,
+              labelColor: AppTheme.paper,
+              unselectedLabelColor: AppTheme.muted,
+              indicatorColor: AppTheme.accent,
+              indicatorWeight: 3,
+              dividerColor: Colors.transparent,
+              labelStyle: const TextStyle(
+                fontFamily: 'FunnelDisplay',
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontFamily: 'FunnelDisplay',
+                fontWeight: FontWeight.w500,
+              ),
+              tabs: const [
+                Tab(icon: Icon(Icons.explore_outlined), text: 'Discover'),
+                Tab(icon: Icon(Icons.library_music_outlined), text: 'Library'),
+                Tab(icon: Icon(Icons.queue_music_outlined), text: 'Queue'),
+                Tab(icon: Icon(Icons.settings_outlined), text: 'Settings'),
+              ],
+            ),
+          ),
+          const Chip(label: Text('BETA')),
+        ],
+      ),
     );
   }
 }
@@ -235,9 +363,9 @@ class AdaptivePlayerSurface extends StatelessWidget {
       return LiquidGlassCard(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
         androidColor: AppTheme.surface,
-        settings: const LiquidGlassSettings(
+        settings: LiquidGlassSettings.matteLight.copyWith(
           tintColor: AppTheme.surface,
-          tintOpacity: 0.78,
+          tintOpacity: 0.74,
         ),
         child: child,
       );
@@ -255,7 +383,10 @@ class AdaptivePlayerSurface extends StatelessWidget {
 }
 
 class AdaptiveContentCard extends StatelessWidget {
-  const AdaptiveContentCard({required this.child, this.padding = const EdgeInsets.all(18), super.key});
+  const AdaptiveContentCard(
+      {required this.child,
+      this.padding = const EdgeInsets.all(18),
+      super.key});
 
   final Widget child;
   final EdgeInsetsGeometry padding;

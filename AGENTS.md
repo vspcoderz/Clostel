@@ -20,6 +20,7 @@ Clostel is a cross-platform music app for Android, iOS, Windows, macOS, and Linu
 - Treat external API responses as untrusted input and validate/normalize them before entering the domain.
 - Keep playback state in one controller; widgets should not own audio state.
 - Keep Liquid Glass on functional layers only: navigation, search, primary actions, and player chrome. Use standard Material cards and list components for content.
+- Do not add Rust/Cargo-based native plugins to this project. Keep Discord Rich Presence on the pure Dart `discord_rich_presence` path.
 - Prefer feature-first folders: `lib/features/...`, with shared code in `lib/core/...`.
 
 ## Verification

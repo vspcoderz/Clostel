@@ -10,7 +10,10 @@ void main() {
 
     expect(tracks, isNotEmpty);
     expect(tracks.map((track) => track.id).toSet().length, tracks.length);
-    expect(tracks.every((track) => track.assetPath.startsWith('assets/audio/')), isTrue);
+    expect(
+        tracks.every(
+            (track) => track.assetPath?.startsWith('assets/audio/') == true),
+        isTrue);
   });
 
   test('catalog search matches artist, title, album, and genre', () async {

@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/track.dart';
+import '../../core/services/discord_presence.dart';
 import '../../core/theme/app_theme.dart';
 import '../player/player_controller.dart';
 import 'adaptive_components.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({required this.controller, super.key});
+  const HomeShell({
+    required this.controller,
+    required this.discordPresence,
+    super.key,
+  });
 
   final PlayerController controller;
+  final DiscordPresenceService discordPresence;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -22,11 +28,21 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    controller.addListener(_handleControllerChange);
     controller.loadFeatured();
+  }
+
+  void _handleControllerChange() {
+    widget.discordPresence.update(
+      track: controller.currentTrack,
+      isPlaying: controller.isPlaying,
+    );
   }
 
   @override
   void dispose() {
+    controller.removeListener(_handleControllerChange);
+    widget.discordPresence.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -42,6 +58,14 @@ class _HomeShellState extends State<HomeShell> {
               return _DesktopShell(
                 selectedIndex: _selectedIndex,
                 controller: controller,
+                discordPresence: widget.discordPresence,
+                discordEnabled: widget.discordPresence.isEnabled,
+                onDiscordChanged: (enabled) async {
+                  await widget.discordPresence.setEnabled(enabled);
+                  if (mounted) {
+                    setState(() {});
+                  }
+                },
                 onSelect: (index) => setState(() => _selectedIndex = index),
               );
             }
@@ -49,6 +73,14 @@ class _HomeShellState extends State<HomeShell> {
             return _MobileShell(
               selectedIndex: _selectedIndex,
               controller: controller,
+              discordPresence: widget.discordPresence,
+              discordEnabled: widget.discordPresence.isEnabled,
+              onDiscordChanged: (enabled) async {
+                await widget.discordPresence.setEnabled(enabled);
+                if (mounted) {
+                  setState(() {});
+                }
+              },
               onSelect: (index) => setState(() => _selectedIndex = index),
             );
           },
@@ -62,11 +94,17 @@ class _DesktopShell extends StatelessWidget {
   const _DesktopShell({
     required this.selectedIndex,
     required this.controller,
+    required this.discordPresence,
+    required this.discordEnabled,
+    required this.onDiscordChanged,
     required this.onSelect,
   });
 
   final int selectedIndex;
   final PlayerController controller;
+  final DiscordPresenceService discordPresence;
+  final bool discordEnabled;
+  final ValueChanged<bool> onDiscordChanged;
   final ValueChanged<int> onSelect;
 
   @override
@@ -76,23 +114,22 @@ class _DesktopShell extends StatelessWidget {
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          body: Row(
+          body: Column(
             children: [
-              AdaptiveDesktopNavigation(
+              AdaptiveDesktopTabs(
                 currentIndex: selectedIndex,
-                onDestinationSelected: onSelect,
+                onChanged: onSelect,
               ),
-              const VerticalDivider(width: 1),
               Expanded(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: _SelectedPage(index: selectedIndex, controller: controller),
-                    ),
-                    _PlayerDock(controller: controller),
-                  ],
+                child: _SelectedPage(
+                  index: selectedIndex,
+                  controller: controller,
+                  discordPresence: discordPresence,
+                  discordEnabled: discordEnabled,
+                  onDiscordChanged: onDiscordChanged,
                 ),
               ),
+              _PlayerDock(controller: controller),
             ],
           ),
         ),
@@ -105,11 +142,17 @@ class _MobileShell extends StatelessWidget {
   const _MobileShell({
     required this.selectedIndex,
     required this.controller,
+    required this.discordPresence,
+    required this.discordEnabled,
+    required this.onDiscordChanged,
     required this.onSelect,
   });
 
   final int selectedIndex;
   final PlayerController controller;
+  final DiscordPresenceService discordPresence;
+  final bool discordEnabled;
+  final ValueChanged<bool> onDiscordChanged;
   final ValueChanged<int> onSelect;
 
   @override
@@ -119,11 +162,20 @@ class _MobileShell extends StatelessWidget {
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          body: SafeArea(child: _SelectedPage(index: selectedIndex, controller: controller)),
+          body: SafeArea(
+            child: _SelectedPage(
+              index: selectedIndex,
+              controller: controller,
+              discordPresence: discordPresence,
+              discordEnabled: discordEnabled,
+              onDiscordChanged: onDiscordChanged,
+            ),
+          ),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (controller.currentTrack != null) _MiniPlayer(controller: controller),
+              if (controller.currentTrack != null)
+                _MiniPlayer(controller: controller),
               AdaptiveNavigationBar(
                 currentIndex: selectedIndex,
                 onDestinationSelected: onSelect,
@@ -137,17 +189,31 @@ class _MobileShell extends StatelessWidget {
 }
 
 class _SelectedPage extends StatelessWidget {
-  const _SelectedPage({required this.index, required this.controller});
+  const _SelectedPage({
+    required this.index,
+    required this.controller,
+    required this.discordPresence,
+    required this.discordEnabled,
+    required this.onDiscordChanged,
+  });
 
   final int index;
   final PlayerController controller;
+  final DiscordPresenceService discordPresence;
+  final bool discordEnabled;
+  final ValueChanged<bool> onDiscordChanged;
 
   @override
   Widget build(BuildContext context) {
     return switch (index) {
       0 => _DiscoverView(controller: controller),
       1 => _LibraryView(controller: controller),
-      _ => _QueueView(controller: controller),
+      2 => _QueueView(controller: controller),
+      _ => _SettingsView(
+          discordConfigured: discordPresence.isConfigured,
+          discordEnabled: discordEnabled,
+          onDiscordChanged: onDiscordChanged,
+        ),
     };
   }
 }
@@ -160,7 +226,8 @@ class _DiscoverView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tracks = controller.searchResults;
-    final featured = controller.featured.isEmpty ? null : controller.featured.first;
+    final featured =
+        controller.featured.isEmpty ? null : controller.featured.first;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 30, 24, 30),
@@ -188,7 +255,8 @@ class _DiscoverView extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Fresh signals', style: Theme.of(context).textTheme.headlineSmall),
+                  Text('Fresh signals',
+                      style: Theme.of(context).textTheme.headlineSmall),
                   if (controller.isSearching)
                     const SizedBox(
                       width: 18,
@@ -237,9 +305,11 @@ class _PageIntro extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DISCOVER / TODAY', style: Theme.of(context).textTheme.labelMedium),
+              Text('DISCOVER / TODAY',
+                  style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 10),
-              Text('A better way to\nhear the world.', style: Theme.of(context).textTheme.displaySmall),
+              Text('A better way to\nhear the world.',
+                  style: Theme.of(context).textTheme.displaySmall),
               const SizedBox(height: 10),
               Text(
                 'A focused listening room for the tracks worth keeping close.',
@@ -280,15 +350,28 @@ class _FeaturedTrack extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('FEATURED SIGNAL', style: Theme.of(context).textTheme.labelMedium),
+                Text(
+                  track.isPreview ? 'LIVE CATALOG PREVIEW' : 'FEATURED SIGNAL',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
                 const SizedBox(height: 8),
-                Text(track.title, style: Theme.of(context).textTheme.headlineSmall),
+                Text(track.title,
+                    style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 4),
-                Text('${track.artist}  /  ${track.album}', style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  track.isPreview
+                      ? '${track.artist}  /  ${track.album}  /  Deezer preview'
+                      : '${track.artist}  /  ${track.album}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
                 const SizedBox(height: 14),
                 AdaptivePrimaryButton(
-                  label: isCurrent && controller.isPlaying ? 'Pause' : 'Play signal',
-                  icon: isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow,
+                  label: isCurrent && controller.isPlaying
+                      ? 'Pause'
+                      : 'Play signal',
+                  icon: isCurrent && controller.isPlaying
+                      ? Icons.pause
+                      : Icons.play_arrow,
                   isLoading: controller.isLoading && isCurrent,
                   onPressed: () {
                     if (isCurrent) {
@@ -308,7 +391,8 @@ class _FeaturedTrack extends StatelessWidget {
 }
 
 class _TrackRow extends StatelessWidget {
-  const _TrackRow({required this.track, required this.controller, required this.queue});
+  const _TrackRow(
+      {required this.track, required this.controller, required this.queue});
 
   final Track track;
   final PlayerController controller;
@@ -318,7 +402,8 @@ class _TrackRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCurrent = controller.currentTrack?.id == track.id;
     final isSaved = controller.isSaved(track);
-    final actionIcon = isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow;
+    final actionIcon =
+        isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -336,7 +421,7 @@ class _TrackRow extends StatelessWidget {
               ),
         ),
         subtitle: Text(
-          '${track.artist}  /  ${track.genre}  /  ${_formatDuration(track.duration)}',
+          '${track.artist}  /  ${track.isPreview ? 'Deezer preview' : track.genre}  /  ${_formatDuration(track.duration)}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
@@ -350,7 +435,9 @@ class _TrackRow extends StatelessWidget {
               icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
             ),
             IconButton(
-              tooltip: isCurrent && controller.isPlaying ? 'Pause ${track.title}' : 'Play ${track.title}',
+              tooltip: isCurrent && controller.isPlaying
+                  ? 'Pause ${track.title}'
+                  : 'Play ${track.title}',
               onPressed: () {
                 if (isCurrent) {
                   controller.togglePlayback();
@@ -377,7 +464,8 @@ class _LibraryView extends StatelessWidget {
     return _SimplePage(
       eyebrow: 'LIBRARY / YOUR ROTATION',
       title: 'Keep the good\nstuff close.',
-      message: 'Save the tracks you want to hear again. Your library follows you across Clostel surfaces.',
+      message:
+          'Save the tracks you want to hear again. Your library follows you across Clostel surfaces.',
       child: controller.library.isEmpty
           ? const _EmptyState(
               icon: Icons.bookmark_border,
@@ -421,8 +509,62 @@ class _TrackList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: tracks
-          .map((track) => _TrackRow(track: track, controller: controller, queue: tracks))
+          .map((track) =>
+              _TrackRow(track: track, controller: controller, queue: tracks))
           .toList(),
+    );
+  }
+}
+
+class _SettingsView extends StatelessWidget {
+  const _SettingsView({
+    required this.discordConfigured,
+    required this.discordEnabled,
+    required this.onDiscordChanged,
+  });
+
+  final bool discordConfigured;
+  final bool discordEnabled;
+  final ValueChanged<bool> onDiscordChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SimplePage(
+      eyebrow: 'SETTINGS / PERSONALIZE',
+      title: 'Make Clostel\nfeel like yours.',
+      message: 'Keep the interface quiet, useful, and connected to the music.',
+      child: Card(
+        color: AppTheme.surface,
+        child: Column(
+          children: [
+            SwitchListTile.adaptive(
+              value: discordEnabled,
+              onChanged: discordConfigured ? onDiscordChanged : null,
+              secondary: const Icon(Icons.forum_outlined),
+              title: const Text('Discord Rich Presence'),
+              subtitle: Text(
+                discordConfigured
+                    ? 'Show the current track in your Discord profile.'
+                    : 'Configure DISCORD_APPLICATION_ID to enable this.',
+              ),
+            ),
+            const Divider(height: 1),
+            const ListTile(
+              leading: Icon(Icons.music_note_outlined),
+              title: Text('Music catalog'),
+              subtitle: Text('Deezer previews with local offline fallback.'),
+              trailing: Icon(Icons.chevron_right),
+            ),
+            const Divider(height: 1),
+            const ListTile(
+              leading: Icon(Icons.palette_outlined),
+              title: Text('Appearance'),
+              subtitle: Text('Warm white is the default listening surface.'),
+              trailing: Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -480,7 +622,10 @@ class _PlayerDock extends StatelessWidget {
     final maxMillis = controller.duration.inMilliseconds <= 0
         ? 1.0
         : controller.duration.inMilliseconds.toDouble();
-    final value = controller.position.inMilliseconds.toDouble().clamp(0.0, maxMillis).toDouble();
+    final value = controller.position.inMilliseconds
+        .toDouble()
+        .clamp(0.0, maxMillis)
+        .toDouble();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
@@ -507,14 +652,18 @@ class _PlayerDock extends StatelessWidget {
                         track.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontSize: 12),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
                   tooltip: 'Previous track',
-                  onPressed: controller.hasPrevious ? controller.skipPrevious : null,
+                  onPressed:
+                      controller.hasPrevious ? controller.skipPrevious : null,
                   icon: const Icon(Icons.skip_previous),
                 ),
                 IconButton.filled(
@@ -524,7 +673,8 @@ class _PlayerDock extends StatelessWidget {
                     backgroundColor: AppTheme.accent,
                     foregroundColor: AppTheme.background,
                   ),
-                  icon: Icon(controller.isPlaying ? Icons.pause : Icons.play_arrow),
+                  icon: Icon(
+                      controller.isPlaying ? Icons.pause : Icons.play_arrow),
                 ),
                 IconButton(
                   tooltip: 'Next track',
@@ -535,15 +685,18 @@ class _PlayerDock extends StatelessWidget {
             ),
             Row(
               children: [
-                Text(_formatDuration(controller.position), style: Theme.of(context).textTheme.labelMedium),
+                Text(_formatDuration(controller.position),
+                    style: Theme.of(context).textTheme.labelMedium),
                 Expanded(
                   child: Slider(
                     value: value,
                     max: maxMillis,
-                    onChanged: (next) => controller.seek(Duration(milliseconds: next.round())),
+                    onChanged: (next) =>
+                        controller.seek(Duration(milliseconds: next.round())),
                   ),
                 ),
-                Text(_formatDuration(controller.duration), style: Theme.of(context).textTheme.labelMedium),
+                Text(_formatDuration(controller.duration),
+                    style: Theme.of(context).textTheme.labelMedium),
               ],
             ),
           ],
@@ -576,13 +729,19 @@ class _MiniPlayer extends StatelessWidget {
                     track.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 13),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontSize: 13),
                   ),
                   Text(
                     track.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 11),
                   ),
                 ],
               ),
@@ -600,7 +759,8 @@ class _MiniPlayer extends StatelessWidget {
 }
 
 class _Artwork extends StatelessWidget {
-  const _Artwork({required this.track, required this.size, required this.radius});
+  const _Artwork(
+      {required this.track, required this.size, required this.radius});
 
   final Track track;
   final double size;
@@ -620,6 +780,37 @@ class _Artwork extends StatelessWidget {
           colors: [color, Color.lerp(color, AppTheme.background, 0.78)!],
         ),
       ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: track.artworkUrl == null
+            ? _ArtworkFallback(color: color, size: size)
+            : Image.network(
+                track.artworkUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _ArtworkFallback(color: color, size: size),
+              ),
+      ),
+    );
+  }
+}
+
+class _ArtworkFallback extends StatelessWidget {
+  const _ArtworkFallback({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, Color.lerp(color, AppTheme.background, 0.78)!],
+        ),
+      ),
       child: Icon(
         Icons.graphic_eq,
         color: AppTheme.background.withValues(alpha: 0.82),
@@ -630,7 +821,8 @@ class _Artwork extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.icon, required this.title, required this.message});
+  const _EmptyState(
+      {required this.icon, required this.title, required this.message});
 
   final IconData icon;
   final String title;
@@ -648,7 +840,9 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 5),
-            Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       ),
@@ -667,7 +861,8 @@ class _ErrorBanner extends StatelessWidget {
     return Card(
       color: const Color(0xFF3A2421),
       child: ListTile(
-        leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB4A2)),
+        leading:
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB4A2)),
         title: Text(message, style: const TextStyle(color: Color(0xFFFFD7CF))),
         trailing: IconButton(
           tooltip: 'Dismiss',

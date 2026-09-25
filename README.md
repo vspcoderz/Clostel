@@ -13,11 +13,14 @@ The first slice is a playable MVP shell with:
 - Responsive desktop and mobile layouts
 - Material 3 navigation and content components on Android/Linux/Windows
 - Native Liquid Glass navigation, search, buttons, and player surfaces on iOS/macOS via `flutter_liquid_glass_kit`
+- Funnel Display headings and Open Sans body typography, bundled locally
 - Discover/search surface
-- Local demo catalog for development
-- Play, pause, skip, seek, queue, auto-advance, and library state
-- Provider-neutral catalog and playback interfaces
-- Original generated demo audio assets
+- Real global music discovery through Deezer's public catalog API
+- Local demo catalog fallback for offline development
+- Preview playback is clearly labeled; full-track streaming requires a future authenticated provider integration
+- Discord Rich Presence on desktop when `DISCORD_APPLICATION_ID` is configured, using pure Dart IPC with no Rust/Cargo build
+- Settings toggle for Discord Rich Presence
+- Original generated demo audio assets for the offline fallback
 
 The demo catalog is not a production music source. The next integration boundary is a licensed streaming provider with real authentication and playback authorization.
 
@@ -29,6 +32,14 @@ Install Flutter 3.27+ (Dart 3.6+), then:
 ./tool/bootstrap.sh
 flutter run
 ```
+
+To enable Discord Rich Presence, create an application in the Discord Developer Portal and pass its application ID at build/run time:
+
+```bash
+flutter run -d linux --dart-define=DISCORD_APPLICATION_ID=your_application_id
+```
+
+The application ID is not a secret. Never put Discord tokens or other credentials in this repository.
 
 Verify:
 

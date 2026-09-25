@@ -8,14 +8,16 @@ import 'package:clostel/core/services/playback_service.dart';
 import 'package:clostel/features/player/player_controller.dart';
 
 void main() {
-  test('playback controller loads a track and advances through the queue', () async {
+  test('playback controller loads a track and advances through the queue',
+      () async {
     final playback = FakePlaybackService();
     final catalog = DemoMusicCatalog();
     final controller = PlayerController(catalog: catalog, playback: playback);
     addTearDown(controller.dispose);
 
     await controller.loadFeatured();
-    await controller.playTrack(DemoMusicCatalog.tracks.first, queue: DemoMusicCatalog.tracks);
+    await controller.playTrack(DemoMusicCatalog.tracks.first,
+        queue: DemoMusicCatalog.tracks);
 
     expect(controller.currentTrack?.title, 'Night Transit');
     expect(controller.isPlaying, isTrue);
@@ -25,16 +27,19 @@ void main() {
     await controller.skipNext();
 
     expect(controller.currentTrack?.title, 'Amber Static');
-    expect(playback.loaded, [DemoMusicCatalog.tracks.first, DemoMusicCatalog.tracks[1]]);
+    expect(playback.loaded,
+        [DemoMusicCatalog.tracks.first, DemoMusicCatalog.tracks[1]]);
     expect(controller.isPlaying, isTrue);
   });
 
   test('previous restarts the current track after three seconds', () async {
     final playback = FakePlaybackService();
-    final controller = PlayerController(catalog: DemoMusicCatalog(), playback: playback);
+    final controller =
+        PlayerController(catalog: DemoMusicCatalog(), playback: playback);
     addTearDown(controller.dispose);
 
-    await controller.playTrack(DemoMusicCatalog.tracks[1], queue: DemoMusicCatalog.tracks);
+    await controller.playTrack(DemoMusicCatalog.tracks[1],
+        queue: DemoMusicCatalog.tracks);
     playback.position.add(const Duration(seconds: 4));
     await Future<void>.delayed(Duration.zero);
 
@@ -50,7 +55,8 @@ void main() {
     final controller = PlayerController(catalog: catalog, playback: playback);
     addTearDown(controller.dispose);
 
-    await controller.playTrack(DemoMusicCatalog.tracks.first, queue: DemoMusicCatalog.tracks);
+    await controller.playTrack(DemoMusicCatalog.tracks.first,
+        queue: DemoMusicCatalog.tracks);
     playback.completed.add(true);
     await Future<void>.delayed(Duration.zero);
 
