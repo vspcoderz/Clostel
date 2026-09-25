@@ -113,8 +113,8 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return NavigationRail(
       extended: true,
-      minWidth: 80,
-      minExtendedWidth: 280,
+      minWidth: 72,
+      minExtendedWidth: 224,
       backgroundColor: AppTheme.surface,
       indicatorColor: AppTheme.accent.withValues(alpha: 0.18),
       indicatorShape: RoundedRectangleBorder(
@@ -122,8 +122,8 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
       ),
       selectedIndex: currentIndex,
       onDestinationSelected: onDestinationSelected,
-      groupAlignment: -0.55,
-      mainAxisAlignment: MainAxisAlignment.center,
+      groupAlignment: -0.85,
+      mainAxisAlignment: MainAxisAlignment.start,
       selectedLabelTextStyle: const TextStyle(
         fontFamily: 'FunnelDisplay',
         fontWeight: FontWeight.w600,
@@ -143,7 +143,7 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
         size: 22,
       ),
       leading: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 26, 20, 38),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 22),
         child: Row(
           children: [
             Container(
@@ -170,55 +170,27 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
           ],
         ),
       ),
-      trailing: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 28, 18, 22),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceRaised,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.line),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.cloud_done_outlined, color: AppTheme.accent, size: 18),
-              SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  'Deezer previews\nwith offline fallback',
-                  style: TextStyle(
-                    fontFamily: 'OpenSans',
-                    color: AppTheme.muted,
-                    fontSize: 11,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
       destinations: const [
         NavigationRailDestination(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           icon: Icon(Icons.explore_outlined),
           selectedIcon: Icon(Icons.explore),
           label: Text('Discover'),
         ),
         NavigationRailDestination(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           icon: Icon(Icons.library_music_outlined),
           selectedIcon: Icon(Icons.library_music),
           label: Text('Library'),
         ),
         NavigationRailDestination(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           icon: Icon(Icons.queue_music_outlined),
           selectedIcon: Icon(Icons.queue_music),
           label: Text('Queue'),
         ),
         NavigationRailDestination(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           icon: Icon(Icons.settings_outlined),
           selectedIcon: Icon(Icons.settings),
           label: Text('Settings'),

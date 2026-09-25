@@ -59,7 +59,7 @@ class _HomeShellState extends State<HomeShell> {
                 selectedIndex: _selectedIndex,
                 controller: controller,
                 discordPresence: widget.discordPresence,
-                discordEnabled: widget.discordPresence.isEnabled,
+                discordEnabled: widget.discordPresence.userEnabled,
                 onDiscordChanged: (enabled) async {
                   await widget.discordPresence.setEnabled(enabled);
                   if (mounted) {
@@ -74,7 +74,7 @@ class _HomeShellState extends State<HomeShell> {
               selectedIndex: _selectedIndex,
               controller: controller,
               discordPresence: widget.discordPresence,
-              discordEnabled: widget.discordPresence.isEnabled,
+              discordEnabled: widget.discordPresence.userEnabled,
               onDiscordChanged: (enabled) async {
                 await widget.discordPresence.setEnabled(enabled);
                 if (mounted) {

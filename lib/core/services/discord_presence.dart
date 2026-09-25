@@ -13,6 +13,7 @@ class DiscordPresenceService {
   Track? _lastTrack;
   bool _lastIsPlaying = false;
   bool _userEnabled = true;
+  DateTime? _nextConnectAttempt;
 
   bool get isConfigured {
     if (applicationId == null || applicationId!.trim().isEmpty) {
@@ -29,6 +30,8 @@ class DiscordPresenceService {
   }
 
   bool get isEnabled => isConfigured && _userEnabled && _client != null;
+
+  bool get userEnabled => _userEnabled;
 
   Future<void> initialize() async {
     if (!isConfigured || _userEnabled == false) {
@@ -69,11 +72,31 @@ class DiscordPresenceService {
     _lastIsPlaying = isPlaying;
 
     final client = _client;
-    if (!isEnabled || client == null) {
+    if (!isConfigured || !_userEnabled) {
+      return;
+    }
+    if (client == null) {
+      _scheduleReconnect();
       return;
     }
 
     unawaited(_setPresence(client, track: track, isPlaying: isPlaying));
+  }
+
+  void _scheduleReconnect() {
+    final now = DateTime.now();
+    if (_nextConnectAttempt != null && _nextConnectAttempt!.isAfter(now)) {
+      return;
+    }
+    _nextConnectAttempt = now.add(const Duration(seconds: 8));
+    unawaited(_reconnect());
+  }
+
+  Future<void> _reconnect() async {
+    final client = await _connect();
+    if (client != null) {
+      await _setPresence(client, track: _lastTrack, isPlaying: _lastIsPlaying);
+    }
   }
 
   Future<Client?> _connect() async {
@@ -90,7 +113,6 @@ class DiscordPresenceService {
       _client = client;
       return client;
     } catch (_) {
-      _userEnabled = false;
       return null;
     }
   }
@@ -102,6 +124,15 @@ class DiscordPresenceService {
     bool disabled = false,
   }) async {
     try {
+      final assets = track?.artworkUrl != null
+          ? ActivityAssets.fromExternalLink(
+              track!.artworkUrl!,
+              text: track.album,
+            )
+          : ActivityAssets(
+              largeText: 'Clostel',
+              smallText: track?.album,
+            );
       final activity = disabled
           ? Activity(
               name: 'Clostel',
@@ -120,16 +151,12 @@ class DiscordPresenceService {
                   details: track.title,
                   state:
                       '${isPlaying ? 'Listening now' : 'Paused'}  •  ${track.artist}',
-                  assets: ActivityAssets(
-                    largeText: 'Clostel',
-                    smallText: track.album,
-                  ),
+                  assets: assets,
                   timestamps: ActivityTimestamps(start: DateTime.now()),
                 );
       await client.setActivity(activity);
     } catch (_) {
       _client = null;
-      _userEnabled = false;
     }
   }
 
