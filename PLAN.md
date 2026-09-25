@@ -34,4 +34,47 @@ Build a playable cross-platform music-app slice with a distinctive Clostel inter
 
 ## Status
 
-In progress — visual refresh and real catalog integration.
+In progress — visual refresh, real catalog integration, and the requested UI/player expansion.
+
+## UI and BhariyaMusic integration plan
+
+### Goal
+
+Upgrade Clostel into a polished, local-first music player with a full Now Playing experience, durable state, stronger queue/search/settings surfaces, and an optional provider-neutral BhariyaMusic adapter without introducing unsafe or unlawful default behavior.
+
+### Approach
+
+- Implement the UI in phases so the app remains buildable: player foundation first, then navigation/search/library/settings, then discovery polish and accessibility.
+- Keep the existing `PlayerController` as the single playback owner and add explicit playback state, queue actions, persistence seams, and background/media integration behind service interfaces.
+- Preserve Material 3 on Android/Linux/Windows and Liquid Glass only for functional layers on Apple platforms.
+- Treat BhariyaMusic as an optional external provider configured by environment, not a bundled production dependency. Do not hard-code its DDNS endpoint.
+- Do not enable or advertise audio extraction/download from YouTube or Spotify by default. If the provider is enabled, validate every URL and response and clearly mark provenance/playback status.
+- Do not copy the Python backend into the Flutter app until its license, security posture, API contract, and rights model are explicitly approved.
+
+### Files touched
+
+- `PLAN.md`
+- `lib/app.dart`
+- `lib/main.dart`
+- `lib/core/models/`
+- `lib/core/services/`
+- `lib/core/data/`
+- `lib/features/home/`
+- `lib/features/player/`
+- `test/`
+- `pubspec.yaml` only if a concrete platform capability requires a new dependency.
+
+### Verification steps
+
+1. `flutter analyze` passes.
+2. `flutter test` passes.
+3. Existing catalog and playback tests remain green.
+4. Provider response parsing, URL validation, and disabled-by-default behavior are tested.
+5. Player state transitions, queue actions, persistence, and theme selection are tested.
+6. Responsive layouts are checked at phone, tablet, and desktop widths.
+7. No secrets, cookies, tokens, or unlicensed catalog endpoints are committed.
+8. The final integration is reviewed for security and licensing before being enabled.
+
+### Status
+
+Implementation in progress — user selected explicit opt-in BhariyaMusic audio. The external repository remains unvendored and must stay behind environment configuration until its rights and security review is documented.
