@@ -9,7 +9,10 @@ class Track {
     required this.accentValue,
     this.assetPath,
     this.streamUrl,
+    this.filePath,
     this.artworkUrl,
+    this.source,
+    this.licenseUrl,
   });
 
   final String id;
@@ -21,9 +24,12 @@ class Track {
   final int accentValue;
   final String? assetPath;
   final String? streamUrl;
+  final String? filePath;
   final String? artworkUrl;
+  final String? source;
+  final String? licenseUrl;
 
-  bool get isPreview => streamUrl != null;
+  bool get isPreview => source == 'Deezer';
 
   bool matches(String query) {
     final normalized = query.trim().toLowerCase();

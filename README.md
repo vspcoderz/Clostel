@@ -15,9 +15,10 @@ The first slice is a playable MVP shell with:
 - Native Liquid Glass navigation, search, buttons, and player surfaces on iOS/macOS via `flutter_liquid_glass_kit`
 - Funnel Display headings and Open Sans body typography, bundled locally
 - Discover/search surface
-- Real global music discovery through Deezer's public catalog API
+- Real global music discovery through Deezer previews and optional Jamendo full Creative Commons tracks
 - Local demo catalog fallback for offline development
-- Preview playback is clearly labeled; full-track streaming requires a future authenticated provider integration
+- Local audio import for user-owned files and offline listening
+- Preview playback is clearly labeled; full-track Jamendo playback requires a production client ID and license review
 - Discord Rich Presence on desktop using the bundled application ID, with a `DISCORD_APPLICATION_ID` build override for other environments
 - Settings toggle for Discord Rich Presence
 - Original generated demo audio assets for the offline fallback
@@ -33,10 +34,20 @@ Install Flutter 3.27+ (Dart 3.6+), then:
 flutter run
 ```
 
-Discord Rich Presence is configured with the bundled Clostel application ID. To override it for another environment:
+To enable Jamendo full-track discovery in a configured environment:
 
 ```bash
-flutter run -d linux --dart-define=DISCORD_APPLICATION_ID=your_application_id
+flutter run -d linux \
+  --dart-define=JAMENDO_CLIENT_ID=your_jamendo_client_id
+```
+
+Jamendo requires a client ID even for read requests. Clostel does not ship a test or production client ID in source.
+
+Discord Rich Presence uses the bundled Clostel application ID. To override it:
+
+```bash
+flutter run -d linux \
+  --dart-define=DISCORD_APPLICATION_ID=your_application_id
 ```
 
 The application ID is not a secret. Never put Discord tokens or other credentials in this repository.

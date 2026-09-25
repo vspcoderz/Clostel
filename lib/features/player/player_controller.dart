@@ -4,14 +4,17 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/models/track.dart';
 import '../../core/services/music_catalog.dart';
+import '../../core/services/local_music_service.dart';
 import '../../core/services/playback_service.dart';
 
 class PlayerController extends ChangeNotifier {
   PlayerController({
     required MusicCatalog catalog,
     required PlaybackService playback,
+    LocalMusicService? localMusic,
   })  : _catalog = catalog,
-        _playback = playback {
+        _playback = playback,
+        _localMusic = localMusic {
     _positionSubscription = _playback.positionStream.listen((position) {
       _position = position;
       _notify();
@@ -35,6 +38,7 @@ class PlayerController extends ChangeNotifier {
 
   final MusicCatalog _catalog;
   final PlaybackService _playback;
+  final LocalMusicService? _localMusic;
 
   late final StreamSubscription<Duration> _positionSubscription;
   late final StreamSubscription<Duration?> _durationSubscription;
@@ -51,6 +55,7 @@ class PlayerController extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isLoading = false;
   bool _isSearching = false;
+  bool _isImportingLibrary = false;
   int _searchRequest = 0;
   int _playRequest = 0;
   bool _disposed = false;
@@ -67,6 +72,7 @@ class PlayerController extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   bool get isLoading => _isLoading;
   bool get isSearching => _isSearching;
+  bool get isImportingLibrary => _isImportingLibrary;
   String? get error => _error;
 
   bool isSaved(Track track) => _library.any((item) => item.id == track.id);
@@ -237,6 +243,33 @@ class PlayerController extends ChangeNotifier {
       await _playback.seek(value);
     } catch (_) {
       _error = 'Could not move the playback position.';
+      _notify();
+    }
+  }
+
+  Future<void> importLocalTracks() async {
+    final localMusic = _localMusic;
+    if (localMusic == null || _isImportingLibrary) {
+      return;
+    }
+
+    _isImportingLibrary = true;
+    _error = null;
+    _notify();
+
+    try {
+      final imported = await localMusic.pickAudioFiles();
+      if (imported.isNotEmpty) {
+        final existingIds = _library.map((track) => track.id).toSet();
+        _library = List<Track>.unmodifiable([
+          ..._library,
+          ...imported.where((track) => !existingIds.contains(track.id)),
+        ]);
+      }
+    } catch (_) {
+      _error = 'Could not import those audio files.';
+    } finally {
+      _isImportingLibrary = false;
       _notify();
     }
   }

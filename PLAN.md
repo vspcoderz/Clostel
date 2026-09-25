@@ -8,7 +8,7 @@ Build a playable cross-platform music-app slice with a distinctive Clostel inter
 
 - Use Flutter for Android, iOS, Windows, macOS, and Linux.
 - Keep the catalog behind a provider-neutral contract.
-- Use Deezer's public catalog API for real global tracks and preview playback, with the local demo catalog as an offline fallback. Preview playback must be labeled honestly; full-track streaming remains a future authenticated provider integration.
+- Make offline listening the default: import user-owned audio files through a native file picker, keep them in the local library, and play them without an account or network. Online Jamendo/Deezer discovery remains optional.
 - Centralize playback state in a controller; keep widgets presentational.
 - Use Flutter's built-in Material 3 components for Android/Linux/Windows and `flutter_liquid_glass_kit` components for iOS/macOS. Glass is limited to functional surfaces: navigation, search, primary actions, and the player dock. Content cards stay standard Material surfaces so the interface remains readable.
 - Default to a warm white Material appearance with dark mode retained as an alternate. Bundle Funnel Display and Open Sans locally: Funnel Display for display/heading typography, Open Sans for body text and controls.
@@ -17,7 +17,7 @@ Build a playable cross-platform music-app slice with a distinctive Clostel inter
 ## Files touched
 
 - Flutter project scaffold and platform runner files.
-- `lib/core/` for models, theme, provider contracts, and the Deezer catalog adapter.
+- `lib/core/` for models, theme, provider contracts, the Deezer/Jamendo adapters, and local-file import.
 - `lib/features/home/` for the main browsing and player experience plus adaptive Material/Liquid Glass components and settings.
 - `assets/fonts/` for bundled Funnel Display and Open Sans fonts.
 - `test/` for domain, catalog parsing, and controller behavior.

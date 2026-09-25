@@ -44,11 +44,13 @@ class JustAudioPlaybackService implements PlaybackService {
 
   @override
   Future<void> load(Track track) async {
-    final source = track.streamUrl != null
-        ? AudioSource.uri(Uri.parse(track.streamUrl!))
-        : track.assetPath != null
-            ? AudioSource.asset(track.assetPath!)
-            : throw StateError('Track ${track.id} has no playable source.');
+    final source = track.filePath != null
+        ? AudioSource.file(track.filePath!)
+        : track.streamUrl != null
+            ? AudioSource.uri(Uri.parse(track.streamUrl!))
+            : track.assetPath != null
+                ? AudioSource.asset(track.assetPath!)
+                : throw StateError('Track ${track.id} has no playable source.');
 
     await _player.setAudioSource(source);
   }

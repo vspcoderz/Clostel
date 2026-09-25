@@ -114,22 +114,43 @@ class _DesktopShell extends StatelessWidget {
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
         child: Scaffold(
           backgroundColor: Colors.transparent,
-          body: Column(
+          body: Row(
             children: [
-              AdaptiveDesktopTabs(
+              AdaptiveDesktopNavigation(
                 currentIndex: selectedIndex,
-                onChanged: onSelect,
+                onDestinationSelected: onSelect,
               ),
+              const VerticalDivider(width: 1),
               Expanded(
-                child: _SelectedPage(
-                  index: selectedIndex,
-                  controller: controller,
-                  discordPresence: discordPresence,
-                  discordEnabled: discordEnabled,
-                  onDiscordChanged: onDiscordChanged,
+                child: Column(
+                  children: [
+                    AppBar(
+                      primary: false,
+                      toolbarHeight: 58,
+                      titleSpacing: 24,
+                      backgroundColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      title: Text(_pageTitle(selectedIndex)),
+                      actions: const [
+                        Padding(
+                          padding: EdgeInsets.only(right: 24),
+                          child: Chip(label: Text('DEEZER PREVIEWS')),
+                        ),
+                      ],
+                    ),
+                    Expanded(
+                      child: _SelectedPage(
+                        index: selectedIndex,
+                        controller: controller,
+                        discordPresence: discordPresence,
+                        discordEnabled: discordEnabled,
+                        onDiscordChanged: onDiscordChanged,
+                      ),
+                    ),
+                    _PlayerDock(controller: controller),
+                  ],
                 ),
               ),
-              _PlayerDock(controller: controller),
             ],
           ),
         ),
@@ -186,6 +207,15 @@ class _MobileShell extends StatelessWidget {
       ),
     );
   }
+}
+
+String _pageTitle(int index) {
+  return switch (index) {
+    0 => 'Discover',
+    1 => 'Library',
+    2 => 'Queue',
+    _ => 'Settings',
+  };
 }
 
 class _SelectedPage extends StatelessWidget {
@@ -466,13 +496,44 @@ class _LibraryView extends StatelessWidget {
       title: 'Keep the good\nstuff close.',
       message:
           'Save the tracks you want to hear again. Your library follows you across Clostel surfaces.',
-      child: controller.library.isEmpty
-          ? const _EmptyState(
-              icon: Icons.bookmark_border,
-              title: 'Your library is quiet',
-              message: 'Tap the bookmark on a track to keep it here.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Your files stay on this device unless you explicitly move them.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              const SizedBox(width: 16),
+              FilledButton.icon(
+                onPressed: controller.isImportingLibrary
+                    ? null
+                    : controller.importLocalTracks,
+                icon: controller.isImportingLibrary
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.library_music_outlined),
+                label: const Text('Import audio'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (controller.library.isEmpty)
+            const _EmptyState(
+              icon: Icons.folder_open_outlined,
+              title: 'Your offline library is empty',
+              message: 'Import audio files you own or are licensed to use.',
             )
-          : _TrackList(tracks: controller.library, controller: controller),
+          else
+            _TrackList(tracks: controller.library, controller: controller),
+        ],
+      ),
     );
   }
 }

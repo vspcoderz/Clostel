@@ -28,36 +28,39 @@ class DiscordPresenceService {
     };
   }
 
-  bool get isEnabled => isConfigured && _userEnabled;
+  bool get isEnabled => isConfigured && _userEnabled && _client != null;
 
   Future<void> initialize() async {
-    if (!isConfigured) {
+    if (!isConfigured || _userEnabled == false) {
       return;
     }
-
-    final client = Client(clientId: applicationId!);
-    await client.connect();
-    _client = client;
+    await _connect();
   }
 
   Future<void> setEnabled(bool enabled) async {
     _userEnabled = enabled;
-    final client = _client;
-    if (client == null || !isConfigured) {
+    if (!isConfigured) {
       return;
     }
 
     if (!enabled) {
-      await client.setActivity(
-        Activity(
-          name: 'Clostel',
-          type: ActivityType.listening,
-          state: 'Rich Presence off',
-        ),
+      final client = _client;
+      if (client == null) {
+        return;
+      }
+      await _setPresence(
+        client,
+        track: null,
+        isPlaying: false,
+        disabled: true,
       );
       return;
     }
 
+    final client = await _connect();
+    if (client == null) {
+      return;
+    }
     await _setPresence(client, track: _lastTrack, isPlaying: _lastIsPlaying);
   }
 
@@ -73,31 +76,61 @@ class DiscordPresenceService {
     unawaited(_setPresence(client, track: track, isPlaying: isPlaying));
   }
 
+  Future<Client?> _connect() async {
+    if (_client != null) {
+      return _client;
+    }
+    if (!isConfigured) {
+      return null;
+    }
+
+    try {
+      final client = Client(clientId: applicationId!);
+      await client.connect();
+      _client = client;
+      return client;
+    } catch (_) {
+      _userEnabled = false;
+      return null;
+    }
+  }
+
   Future<void> _setPresence(
     Client client, {
     required Track? track,
     required bool isPlaying,
+    bool disabled = false,
   }) async {
-    final activity = track == null
-        ? Activity(
-            name: 'Clostel',
-            type: ActivityType.listening,
-            state: 'Ready to listen',
-          )
-        : Activity(
-            name: 'Clostel',
-            type: ActivityType.listening,
-            details: track.title,
-            state:
-                '${isPlaying ? 'Listening now' : 'Paused'}  •  ${track.artist}',
-            assets: ActivityAssets(
-              largeText: 'Clostel',
-              smallText: track.album,
-            ),
-            timestamps: ActivityTimestamps(start: DateTime.now()),
-          );
-
-    await client.setActivity(activity);
+    try {
+      final activity = disabled
+          ? Activity(
+              name: 'Clostel',
+              type: ActivityType.listening,
+              state: 'Rich Presence off',
+            )
+          : track == null
+              ? Activity(
+                  name: 'Clostel',
+                  type: ActivityType.listening,
+                  state: 'Ready to listen',
+                )
+              : Activity(
+                  name: 'Clostel',
+                  type: ActivityType.listening,
+                  details: track.title,
+                  state:
+                      '${isPlaying ? 'Listening now' : 'Paused'}  •  ${track.artist}',
+                  assets: ActivityAssets(
+                    largeText: 'Clostel',
+                    smallText: track.album,
+                  ),
+                  timestamps: ActivityTimestamps(start: DateTime.now()),
+                );
+      await client.setActivity(activity);
+    } catch (_) {
+      _client = null;
+      _userEnabled = false;
+    }
   }
 
   void dispose() {
@@ -105,7 +138,15 @@ class DiscordPresenceService {
     _client = null;
     _lastTrack = null;
     if (client != null) {
-      unawaited(client.disconnect());
+      unawaited(_disconnect(client));
+    }
+  }
+
+  Future<void> _disconnect(Client client) async {
+    try {
+      await client.disconnect();
+    } catch (_) {
+      // Discord may already have closed its IPC socket.
     }
   }
 }

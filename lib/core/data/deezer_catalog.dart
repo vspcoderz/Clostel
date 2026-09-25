@@ -90,6 +90,7 @@ class DeezerMusicCatalog implements MusicCatalog {
       accentValue: _accentValues[id.hashCode.abs() % _accentValues.length],
       streamUrl: previewUrl,
       artworkUrl: coverUrl,
+      source: 'Deezer',
     );
   }
 

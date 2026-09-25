@@ -10,9 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   discord_rich_presence: ^1.1.1
+  file_picker: ^10.2.0
   flutter_liquid_glass_kit: ^1.5.0
   http: ^1.3.0
   just_audio: ^0.10.4
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_linux: any
+  media_kit_libs_windows_audio: any
 
 dev_dependencies:
   flutter_test:

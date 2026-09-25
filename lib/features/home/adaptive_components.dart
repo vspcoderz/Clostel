@@ -113,54 +113,112 @@ class AdaptiveDesktopNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return NavigationRail(
       extended: true,
-      minWidth: 248,
+      minWidth: 80,
+      minExtendedWidth: 280,
       backgroundColor: AppTheme.surface,
       indicatorColor: AppTheme.accent.withValues(alpha: 0.18),
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
       selectedIndex: currentIndex,
       onDestinationSelected: onDestinationSelected,
-      groupAlignment: -0.75,
+      groupAlignment: -0.55,
+      mainAxisAlignment: MainAxisAlignment.center,
+      selectedLabelTextStyle: const TextStyle(
+        fontFamily: 'FunnelDisplay',
+        fontWeight: FontWeight.w600,
+        color: AppTheme.paper,
+      ),
+      unselectedLabelTextStyle: const TextStyle(
+        fontFamily: 'FunnelDisplay',
+        fontWeight: FontWeight.w500,
+        color: AppTheme.muted,
+      ),
+      selectedIconTheme: const IconThemeData(
+        color: AppTheme.accent,
+        size: 22,
+      ),
+      unselectedIconTheme: const IconThemeData(
+        color: AppTheme.muted,
+        size: 22,
+      ),
       leading: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 18, 12, 28),
+        padding: const EdgeInsets.fromLTRB(20, 26, 20, 38),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 color: AppTheme.accent,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.graphic_eq,
-                  color: AppTheme.background, size: 22),
+              child: const Icon(
+                Icons.graphic_eq,
+                color: Colors.white,
+                size: 23,
+              ),
             ),
-            const SizedBox(width: 11),
+            const SizedBox(width: 12),
             Text(
               'clostel',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 22,
+                    fontSize: 23,
                     letterSpacing: -0.8,
                   ),
             ),
           ],
         ),
       ),
+      trailing: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 28, 18, 22),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceRaised,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.line),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.cloud_done_outlined, color: AppTheme.accent, size: 18),
+              SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Deezer previews\nwith offline fallback',
+                  style: TextStyle(
+                    fontFamily: 'OpenSans',
+                    color: AppTheme.muted,
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       destinations: const [
         NavigationRailDestination(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           icon: Icon(Icons.explore_outlined),
           selectedIcon: Icon(Icons.explore),
           label: Text('Discover'),
         ),
         NavigationRailDestination(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           icon: Icon(Icons.library_music_outlined),
           selectedIcon: Icon(Icons.library_music),
           label: Text('Library'),
         ),
         NavigationRailDestination(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           icon: Icon(Icons.queue_music_outlined),
           selectedIcon: Icon(Icons.queue_music),
           label: Text('Queue'),
         ),
         NavigationRailDestination(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           icon: Icon(Icons.settings_outlined),
           selectedIcon: Icon(Icons.settings),
           label: Text('Settings'),
