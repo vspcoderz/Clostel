@@ -59,6 +59,7 @@ class PlayerController extends ChangeNotifier {
   int _searchRequest = 0;
   int _playRequest = 0;
   bool _disposed = false;
+  Timer? _searchDebounce;
   Future<void> _playbackTail = Future<void>.value();
   String? _error;
 
@@ -116,12 +117,20 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
-  Future<void> search(String query) async {
+  void search(String query) {
     final request = ++_searchRequest;
+    _searchDebounce?.cancel();
     _isSearching = true;
     _error = null;
     _notify();
 
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      () => unawaited(_runSearch(query, request)),
+    );
+  }
+
+  Future<void> _runSearch(String query, int request) async {
     try {
       final results = await _catalog.search(query);
       if (request == _searchRequest) {
@@ -299,6 +308,7 @@ class PlayerController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _searchDebounce?.cancel();
     _positionSubscription.cancel();
     _durationSubscription.cancel();
     _playingSubscription.cancel();

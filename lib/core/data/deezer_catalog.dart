@@ -6,6 +6,8 @@ import '../models/track.dart';
 import '../services/music_catalog.dart';
 
 class DeezerMusicCatalog implements MusicCatalog {
+  const DeezerMusicCatalog();
+
   static const _baseUrl = 'https://api.deezer.com';
   static const _accentValues = [
     0xFFEB5E55,
@@ -38,8 +40,15 @@ class DeezerMusicCatalog implements MusicCatalog {
     final uri = pathOrUrl.startsWith('http')
         ? Uri.parse(pathOrUrl)
         : Uri.parse('$_baseUrl$pathOrUrl');
-    final response =
-        await http.get(uri, headers: {'Accept': 'application/json'});
+    final response = await http
+        .get(
+          uri,
+          headers: const {
+            'Accept': 'application/json',
+            'User-Agent': 'Clostel/0.1 (music catalog client)',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
 
     if (response.statusCode != 200) {
       throw StateError('Deezer returned HTTP ${response.statusCode}.');
@@ -91,6 +100,7 @@ class DeezerMusicCatalog implements MusicCatalog {
       streamUrl: previewUrl,
       artworkUrl: coverUrl,
       source: 'Deezer',
+      playbackKind: PlaybackKind.preview,
     );
   }
 

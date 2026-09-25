@@ -1,3 +1,9 @@
+enum PlaybackKind {
+  full,
+  preview,
+  unknown,
+}
+
 class Track {
   const Track({
     required this.id,
@@ -12,7 +18,11 @@ class Track {
     this.filePath,
     this.artworkUrl,
     this.source,
+    this.sourceUrl,
     this.licenseUrl,
+    this.licenseName,
+    this.attribution,
+    this.playbackKind = PlaybackKind.full,
   });
 
   final String id;
@@ -27,9 +37,15 @@ class Track {
   final String? filePath;
   final String? artworkUrl;
   final String? source;
+  final String? sourceUrl;
   final String? licenseUrl;
+  final String? licenseName;
+  final String? attribution;
+  final PlaybackKind playbackKind;
 
-  bool get isPreview => source == 'Deezer';
+  bool get isPreview => playbackKind == PlaybackKind.preview;
+
+  bool get hasVerifiedPlayback => playbackKind != PlaybackKind.unknown;
 
   bool matches(String query) {
     final normalized = query.trim().toLowerCase();

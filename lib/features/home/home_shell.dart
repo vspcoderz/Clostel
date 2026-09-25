@@ -134,7 +134,7 @@ class _DesktopShell extends StatelessWidget {
                       actions: const [
                         Padding(
                           padding: EdgeInsets.only(right: 24),
-                          child: Chip(label: Text('DEEZER PREVIEWS')),
+                          child: Chip(label: Text('PUBLIC CATALOGS')),
                         ),
                       ],
                     ),
@@ -217,6 +217,8 @@ String _pageTitle(int index) {
     _ => 'Settings',
   };
 }
+
+String _sourceLabel(Track track) => track.source ?? 'Catalog';
 
 class _SelectedPage extends StatelessWidget {
   const _SelectedPage({
@@ -369,6 +371,7 @@ class _FeaturedTrack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCurrent = controller.currentTrack?.id == track.id;
+    final canPlay = track.hasVerifiedPlayback;
 
     return AdaptiveContentCard(
       padding: const EdgeInsets.all(18),
@@ -390,26 +393,30 @@ class _FeaturedTrack extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   track.isPreview
-                      ? '${track.artist}  /  ${track.album}  /  Deezer preview'
-                      : '${track.artist}  /  ${track.album}',
+                      ? '${track.artist}  /  ${track.album}  /  ${_sourceLabel(track)} preview'
+                      : '${track.artist}  /  ${track.album}  /  ${_sourceLabel(track)}',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 14),
                 AdaptivePrimaryButton(
-                  label: isCurrent && controller.isPlaying
-                      ? 'Pause'
-                      : 'Play signal',
-                  icon: isCurrent && controller.isPlaying
-                      ? Icons.pause
-                      : Icons.play_arrow,
+                  label: canPlay
+                      ? (isCurrent && controller.isPlaying ? 'Pause' : 'Play signal')
+                      : 'Unavailable',
+                  icon: canPlay
+                      ? (isCurrent && controller.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow)
+                      : Icons.block,
                   isLoading: controller.isLoading && isCurrent,
-                  onPressed: () {
-                    if (isCurrent) {
-                      controller.togglePlayback();
-                    } else {
-                      controller.playTrack(track, queue: controller.featured);
-                    }
-                  },
+                  onPressed: canPlay
+                      ? () {
+                          if (isCurrent) {
+                            controller.togglePlayback();
+                          } else {
+                            controller.playTrack(track, queue: controller.featured);
+                          }
+                        }
+                      : null,
                 ),
               ],
             ),
@@ -432,14 +439,16 @@ class _TrackRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCurrent = controller.currentTrack?.id == track.id;
     final isSaved = controller.isSaved(track);
-    final actionIcon =
-        isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow;
+    final canPlay = track.hasVerifiedPlayback;
+    final actionIcon = canPlay
+        ? (isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow)
+        : Icons.block;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: AppTheme.surface,
       child: ListTile(
-        onTap: () => controller.playTrack(track, queue: queue),
+        onTap: canPlay ? () => controller.playTrack(track, queue: queue) : null,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: _Artwork(track: track, size: 54, radius: 10),
         title: Text(
@@ -451,7 +460,7 @@ class _TrackRow extends StatelessWidget {
               ),
         ),
         subtitle: Text(
-          '${track.artist}  /  ${track.isPreview ? 'Deezer preview' : track.genre}  /  ${_formatDuration(track.duration)}',
+          '${track.artist}  /  ${_sourceLabel(track)}  /  ${track.isPreview ? 'preview' : track.licenseName ?? track.genre}  /  ${_formatDuration(track.duration)}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
@@ -465,16 +474,20 @@ class _TrackRow extends StatelessWidget {
               icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
             ),
             IconButton(
-              tooltip: isCurrent && controller.isPlaying
-                  ? 'Pause ${track.title}'
-                  : 'Play ${track.title}',
-              onPressed: () {
-                if (isCurrent) {
-                  controller.togglePlayback();
-                } else {
-                  controller.playTrack(track, queue: queue);
-                }
-              },
+              tooltip: canPlay
+                  ? (isCurrent && controller.isPlaying
+                      ? 'Pause ${track.title}'
+                      : 'Play ${track.title}')
+                  : 'Playback is not verified for this provider',
+              onPressed: canPlay
+                  ? () {
+                      if (isCurrent) {
+                        controller.togglePlayback();
+                      } else {
+                        controller.playTrack(track, queue: queue);
+                      }
+                    }
+                  : null,
               icon: Icon(actionIcon),
             ),
           ],
@@ -613,7 +626,9 @@ class _SettingsView extends StatelessWidget {
             const ListTile(
               leading: Icon(Icons.music_note_outlined),
               title: Text('Music catalog'),
-              subtitle: Text('Deezer previews with local offline fallback.'),
+              subtitle: Text(
+                'Public adapters with per-track licensing and local offline fallback.',
+              ),
               trailing: Icon(Icons.chevron_right),
             ),
             const Divider(height: 1),

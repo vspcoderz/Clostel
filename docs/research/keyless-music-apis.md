@@ -1,7 +1,7 @@
-# Keyless and public music APIs for Clostel
+# Public music metadata/catalog APIs and yt-dlp for Clostel
 
 **Research date:** 2026-09-25  
-**Scope:** Publicly reachable music/catalog APIs that may be usable without an API key, plus the requested commercial catalogs. This is a technical and licensing-risk assessment, not legal advice. “Safe to integrate” means that the documented API can be used without scraping or bypassing authentication; it does **not** mean that every result is safe for Clostel’s commercial use.
+**Scope:** Official public and developer music metadata/catalog APIs that may be usable without a key or with optional authentication, plus a separate assessment of yt-dlp as a non-API bridge for sites where the app has explicit permission. This is a technical and licensing-risk assessment, not legal advice. “Safe to integrate” means that the documented API can be used without scraping or bypassing authentication; it does **not** mean that every result is safe for Clostel’s commercial use.
 
 ## Executive summary
 
@@ -9,17 +9,24 @@
 |---|---:|---|---|---|
 | **ccMixter** | Yes, for the public read-only Query API | Music search by text, tags, user, license, and playlists | Full MP3/FLAC and other files are exposed; no preview-only rule is documented | **Conditional.** Strong keyless full-track candidate, but the API is beta, has no published SLA/rate limit, and requires per-track license handling. |
 | **Internet Archive** | Yes, for public search and metadata reads | Very large, heterogeneous item catalog; search is not music-specific | Full item files when present; rights and restrictions vary per item | **Conditional.** Good read-only archival fallback, not a dependable normalized music catalog. |
-| **Openverse** | Yes, anonymously with low limits | Broad audio search across third-party sources | Mixed: some results are full files, some are previews; provider-specific behavior remains | **Conditional for discovery/metadata; not a blanket playback source.** Verify every result’s license, host terms, and whether the URL is a full file. |
+| **Openverse** | Yes, anonymously; OAuth can unlock higher tiers | Broad audio search across third-party sources | Mixed: some results are full files, some are previews; provider-specific behavior remains | **Conditional for discovery/metadata; not a blanket playback source.** Verify every result’s license, host terms, and whether the URL is a full file. |
 | **Wikimedia Commons** | Yes, for public reads | MediaWiki search and file metadata; includes music, field recordings, and sound effects | Full audio files when public and available | **Conditional and supplementary.** Rights are generally free-license oriented, but this is not a music catalog and file-level checks remain necessary. |
+| **MusicBrainz** | Yes, no API key for public metadata; authentication for submissions and user-specific data | Structured artist, recording, release, release-group, work, label, and identifier metadata | **No audio files or streaming endpoint**; it is a metadata service | **Conditional metadata source.** Core data is CC0, but supplementary data is CC BY-NC-SA and the live web service is documented as free for non-commercial use. |
+| **Apple iTunes Search API** | Yes, public search/lookup is documented without a key | Music, artist, album, song, and store metadata | `previewUrl` is a 30-second promotional preview; no full-track playback or download | **Conditional metadata/affiliate source.** Promo audio must promote the store item, be attributed, and must not be downloaded, saved, cached, or used as independent entertainment. |
 | **Deezer** | Public search does not show a key requirement, but a developer login is required to accept terms | Albums, artists, playlists, radio, search, and tracks | Treat the general API as **30-second extracts only**; do not expose full-track URLs | **No for production.** Deezer’s terms are non-commercial/private-use and prohibit offline storage, DRM bypass, and unauthorized full-track use. |
 | **Jamendo** | No: every call needs `client_id` | Structured music discovery: tracks, albums, artists, tags, charts, playlists, autocomplete, similar tracks, and radios | Full-track stream URLs; download is separately controlled by `audiodownload_allowed` | **Conditional, potentially the best production catalog after commercial licensing.** Not keyless. |
-| **Audius** | No under the current official SDK/API-plan documentation | Track, user, playlist, trending, recommendation, and search APIs | Full-track streaming is supported where API access is permitted | **Conditional.** Requires an API key, current license/OML review, and per-track settings checks. |
+| **Spotify Web API** | No: developer registration, client credentials, and OAuth for user features | Rich commercial catalog metadata, search, playlists, and playback control | Official platform streaming is subject to Spotify’s rules; the 30-second `preview_url` is deprecated and cannot be standalone | **Not a download backend.** Current policy prohibits downloading/ripping, integrating content with another service’s streams, and several commercial uses. |
+| **Audius** | Optional: most read-only endpoints work without credentials; a key raises limits and writes need keys | Track, user, playlist, trending, recommendation, and search APIs | Full-track streaming is supported where API access is permitted | **Conditional.** Review current API Terms/OML, preserve per-track settings, and do not assume API access means unrestricted reuse. |
+| **YouTube Data API** | No: public reads still need an API key; OAuth is needed for user/private data and writes | Video, channel, playlist, search, and public metadata | Use the official player/embed path; the Data API is not a full-track audio/download API | **Conditional official integration only.** No extraction/download/offline path without YouTube’s prior written approval. |
+| **yt-dlp (not an API)** | No API credential; target-site access, cookies, and terms still apply | Extractor-dependent metadata and format discovery for supported sites | Can download full media where the target site and rights permit | **Do not use as Clostel’s default catalog or downloader.** Legal, technical, packaging, and target-site terms make it a high-risk bridge. |
 
 ## Important interpretation of “keyless”
 
 - **No key, but registration still required:** Deezer’s public API documentation does not require a key, but its developer site says a login is needed to accept the API terms. This is not a good fit for a “zero-credential” production integration.
-- **No key for reads, credentials for writes:** Internet Archive, ccMixter, Openverse, and Wikimedia Commons expose useful public read APIs. Their terms and etiquette still apply, and they do not grant unrestricted rights to all content.
+- **No key for reads, credentials for higher limits or writes:** Internet Archive, ccMixter, Openverse, Wikimedia Commons, and MusicBrainz expose useful public read APIs. Audius’s current API reference says most read-only endpoints work without credentials, while keys provide higher limits and are required for writes. Their terms and etiquette still apply.
+- **A key is still required even for public data in major catalogs:** Spotify and YouTube require app registration/credentials; YouTube’s Data API requires an API key for public reads and OAuth for user-specific or write operations. Jamendo requires `client_id` on every call.
 - **Aggregator does not mean uniform rights or uniform files:** Openverse exposes a `url` for each result, but the URL may point to a full file, a preview, or a source-specific representation. Clostel should model this uncertainty instead of treating every result as a playable full track.
+- **Software permission is not media permission:** yt-dlp’s own license covers the tool, not the music, audio, metadata, artwork, or rights in content extracted from a target site. The target site’s terms and the rights holder’s permissions still control.
 
 ## Provider findings
 
@@ -109,7 +116,7 @@ No fixed public read limit is published in the portal. The REST documentation de
 
 **Authentication**
 
-The API supports anonymous requests. A live anonymous response to `GET /v1/audio/?page_size=1&q=music` includes the rate-limit headers described below. Registration can be used to obtain higher limits, but Clostel must not assume anonymous access is appropriate for production-scale traffic.
+The API supports anonymous requests. The current authentication/throttling documentation describes OAuth applications with `standard` and `enhanced` rate-limit tiers, but does not publish a stable numeric anonymous burst or daily allowance. Registration can be used to obtain a higher tier; Clostel should not assume anonymous access is appropriate for production-scale traffic and should read the response headers rather than hard-code a historical number.
 
 **Search and catalog**
 
@@ -125,7 +132,7 @@ Openverse’s terms say the API aggregates metadata about openly licensed conten
 
 **Rate limits and production caveats**
 
-The official anonymous response headers state `20/min` burst and `200/day` sustained limits. The authentication/throttling documentation is the canonical source for changing tiers; clients should read response headers and back off rather than hard-code an assumption that the current anonymous numbers are permanent. The terms permit suspension or termination and limit scraping and circumvention. Commercial or heavy use may require a fee.
+The current documentation describes authenticated `standard` and `enhanced` throttle tiers rather than a stable public numeric anonymous limit. Clostel should read the response headers, back off on throttling, and avoid bulk crawling. The terms permit suspension or termination, prohibit scraping and circumvention, and reserve the right to charge fees for commercial or heavy use.
 
 **Safe to integrate?**
 
@@ -245,7 +252,7 @@ No fixed general rate limit is published. Applications at or above 500,000 hits,
 
 ---
 
-### 7. Audius — open catalog with full streaming, but current API-key requirement
+### 7. Audius — open catalog with full streaming, optional key for reads
 
 **Official documentation**
 
@@ -257,7 +264,7 @@ No fixed general rate limit is published. Applications at or above 500,000 hits,
 
 **Authentication**
 
-The current official SDK documentation says to create an API key in the Audius API Plans page. The API key is safe to include in frontend/mobile code; a backend bearer token is for acting on behalf of users and must never be embedded in a mobile app. User login uses OAuth 2.0 Authorization Code with PKCE. Older public endpoints may be visible without credentials, but Clostel should not design around undocumented legacy behavior; the documented current integration is not keyless.
+The current official API reference says most read-only endpoints work without credentials and recommends an API key for higher rate limits; writes require an API key and secret. The SDK’s free plan documents a 10 requests/second and 500,000 requests/month allowance. The API key is safe to include in frontend/mobile code; a backend bearer token is for acting on behalf of users and must never be embedded in a mobile app. User login uses OAuth 2.0 Authorization Code with PKCE. Clostel should classify Audius as **optional-key for reads, key-required for writes and higher limits**, not as a fully keyless production integration.
 
 **Search and catalog**
 
@@ -273,11 +280,192 @@ Audius’ July 2025 terms update says uploaded tracks can default to All Rights 
 
 **Rate limits and production caveats**
 
-The official SDK README lists a free plan at 10 requests/second and 500,000 requests/month, with an unlimited plan available by contacting Audius. The API key, plan usage, and OAuth implementation must be designed for mobile. Audius can change terms and access settings, and the catalog is decentralized/open, so content quality and rights metadata need validation just like any other provider.
+The official SDK README lists a free plan at 10 requests/second and 500,000 requests/month, with an unlimited plan available by contacting Audius. The current API reference says keys unlock higher limits, and writes require credentials. Audius can change terms and access settings, and the catalog is decentralized/open, so content quality and rights metadata need validation just like any other provider.
 
 **Safe to integrate?**
 
 **Conditionally yes, but not as a keyless provider.** It is a good candidate for an open full-track catalog after Clostel has an API key, a current legal review of the API Terms and OML, and a per-track policy that excludes opt-out or incompatible content.
+
+### 8. MusicBrainz — keyless metadata specialist, not a playback source
+
+**Official documentation**
+
+- [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API)
+- [API rate limiting](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)
+- [Database data licensing](https://musicbrainz.org/doc/About/Data_License)
+- [Database dumps](https://musicbrainz.org/doc/MusicBrainz_Database/Download)
+
+**Authentication**
+
+The public API does not currently require an API key. Authentication is required for submissions and user-specific information; the documentation describes OAuth, while the older digest flow is deprecated. Clostel’s read-only metadata adapter can remain keyless, but it should send a meaningful User-Agent identifying the app and a contact URL/email.
+
+**Search and catalog**
+
+The API is explicitly aimed at developers of media players, CD rippers, taggers, and other applications requiring music metadata. It exposes artist, recording, release, release-group, work, label, and identifier resources, with search, lookup, browse, aliases, tags, genres, ISRC/ISWC lookups, and relationships. JSON and XML are supported.
+
+**Playback: no audio**
+
+MusicBrainz has no music-file streaming or download endpoint. It can enrich a Clostel item with canonical identifiers, artist/release credits, track positions, and release metadata, but it cannot supply playable audio. The database dump contains metadata, not recordings. Cover art is a separate archive and is not part of the core database.
+
+**Licensing and attribution**
+
+The core database data is CC0, but MusicBrainz explicitly splits the database into core and supplementary data; supplementary data is CC BY-NC-SA 3.0. The live web service is documented as free for non-commercial use, with commercial plans or direct contact available for commercial use. A metadata license is not a license to the underlying sound recording, so Clostel must obtain playback rights separately.
+
+**Rate limits and production caveats**
+
+The API page requires clients to make no more than one call per second and to provide a meaningful User-Agent. The rate-limiting page says excessive per-IP traffic can result in HTTP 503 responses, with a global average limit of 300 requests per second. These limits protect a community service and are not an invitation to mirror the database through the live API.
+
+**Safe to integrate?**
+
+**Conditionally yes as a metadata/canonical-identifier source.** It is a strong enrichment layer for a provider that has its own licensed audio, but it is not a Clostel playback provider and the live API’s non-commercial service terms need a commercial arrangement if the app exceeds that scope.
+
+---
+
+### 9. Apple iTunes Search API — keyless store metadata and promotional previews
+
+**Official documentation**
+
+- [iTunes Search API](https://performance-partners.apple.com/search-api)
+- [Archived iTunes Search API overview](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI)
+- [Search API overview and legal terms](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/index.html)
+
+**Authentication**
+
+The documented public Search and Lookup endpoints are callable with URL parameters and no API key. This is still a partner/affiliate surface rather than a general-purpose music-license API. The official documentation says promotional content and links are subject to Apple’s terms and that heavier users should consider the Enterprise Partner Feed.
+
+**Search and catalog**
+
+The Search API supports music, artist, album, song, and music-video searches, with country/storefront selection, ID-based lookup, and a 1–200 result limit. Responses include identifiers, names, artwork, prices, explicit-content metadata, store links, track duration, and genre. Results are tied to a particular storefront and can differ by country.
+
+**Playback: promotional preview only**
+
+The `previewUrl` field is a 30-second preview file. Apple’s legal section says preview audio must be used to promote the subject content, be placed near an approved store badge, include “provided courtesy of iTunes” attribution, and be streamed only. It must not be downloaded, saved, cached, synchronized with video, or used for independent entertainment. There is no documented full-track stream or download permission.
+
+**Licensing and attribution**
+
+The promotional-use conditions are part of the API’s legal terms, not merely implementation advice. The Search API is suitable for a store-linked discovery card or approved affiliate flow; it is not suitable for Clostel’s offline library or as a replacement for a licensed music provider.
+
+**Rate limits and production caveats**
+
+Apple documents approximately 20 Search API calls per minute, subject to change, and recommends a small result limit plus caching for large sites. These are approximate service limits, not a guaranteed SLA. Storefront results, availability, prices, and preview behavior can vary by territory.
+
+**Safe to integrate?**
+
+**Conditionally yes for metadata and compliant store promotion only.** Do not treat the presence of `previewUrl` as permission to build a general music player or downloader around it.
+
+---
+
+### 10. Spotify Web API — credentials required, no download path
+
+**Official documentation**
+
+- [Web API getting started](https://developer.spotify.com/documentation/web-api/quick-start)
+- [Get Track reference](https://developer.spotify.com/documentation/web-api/reference/get-track)
+- [Developer Terms](https://developer.spotify.com/terms)
+- [Developer Policy](https://developer.spotify.com/policy)
+
+**Authentication**
+
+Spotify is not keyless. A developer account and registered application produce client credentials; server calls use a client-credentials access token, while user-private features use OAuth. The client secret must stay in a backend. Clostel must not put a backend secret in a Flutter binary or repository.
+
+**Search and catalog**
+
+The Web API provides commercial catalog metadata, search, albums, artists, playlists, recommendations, and related discovery endpoints. It is a mainstream licensed catalog, not an open-license source, and track availability can be market-, product-, or explicit-content-dependent.
+
+**Playback and download restrictions**
+
+The track object’s `preview_url` is a deprecated 30-second preview and can be null; the reference says preview clips cannot be a standalone service. The current Developer Policy allows streaming only through the approved Spotify platform/player path and limits it to Premium subscribers for music sound recordings. It expressly prohibits downloading, saving, or facilitating “stream ripping,” and prohibits mixing or synchronizing Spotify content with other audio or visual media. It also prohibits a product integrated with streams or content from another service.
+
+Those restrictions matter for Clostel: a cross-provider music app should not assume that a Spotify track can be inserted into the same playback queue as a Jamendo, Audius, or open catalog item. A Spotify integration would need Spotify’s written approval and a narrowly approved integration design.
+
+**Licensing and attribution**
+
+Spotify content must be attributed, and metadata, cover art, and preview clips must link back to the applicable Spotify content. Local caching is limited to narrowly defined temporary metadata/cover art and, for eligible Premium users, time-limited conditional downloads under Spotify’s terms. Commercial use is restricted except for the limited non-streaming cases in the policy.
+
+**Rate limits and production caveats**
+
+Spotify’s current policy says quotas and restrictions may apply and that additional quota requires an application and compliance review; the cited documents do not provide a stable public per-endpoint number. Spotify can monitor usage, modify the platform, or revoke credentials. A quota extension is not permission to add download or cross-service functionality.
+
+**Safe to integrate?**
+
+**Not as Clostel’s download or cross-provider playback backend.** It may be a candidate for a separate, Spotify-approved metadata or official-player integration only after a current terms review and explicit agreement on the product model.
+
+---
+
+### 11. YouTube Data API — key-required metadata, official playback only
+
+**Official documentation**
+
+- [YouTube Data API overview](https://developers.google.com/youtube/v3/getting-started)
+- [API reference and authentication](https://developers.google.com/youtube/v3/docs)
+- [Quota and compliance audits](https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits)
+- [Developer Policies](https://developers.google.com/youtube/terms/developer-policies)
+- [API Services Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service)
+- [IFrame Player API](https://developers.google.com/youtube/iframe_api_reference)
+
+**Authentication**
+
+The Data API requires a Google Cloud project, API enablement, and an API key even for public reads. OAuth 2.0 is required for user-authorized data and write operations. The IFrame Player API is a separate official player surface; the developer policies say it does not require user authorization, but an application still must follow YouTube’s identity, branding, privacy, and minimum-functionality rules.
+
+**Search and catalog**
+
+The Data API exposes public video, channel, playlist, search, and statistics metadata. It is a video catalog API, not a music metadata database with a stable mapping from a video to a particular licensed sound recording. Clostel should not infer that a video title or description is an authoritative track identity.
+
+**Playback and download**
+
+The official route is to let YouTube play the content through its approved player/embed or platform integration. The Data API does not grant a general full-track audio URL. YouTube’s Developer Policies prohibit downloading, importing, backing up, caching, or storing audiovisual content without prior written approval, and prohibit making it available for offline playback. The API Terms also say that no rights are granted to reproduce or distribute audiovisual content except through the API as allowed by the agreement.
+
+**Licensing and attribution**
+
+YouTube API data includes music, sounds, and other audiovisual material, but the API client receives no ownership or unrestricted content license. API clients must display YouTube terms/privacy information, use YouTube branding where required, avoid undocumented APIs and scraping, and follow storage/deletion rules for authorized and non-authorized data. Clostel should treat the source video and the underlying recording as separate rights and identity problems.
+
+**Rate limits and production caveats**
+
+The current quota documentation gives a default allocation of 100 `search.list` calls, 100 `videos.insert` calls, and 10,000 units per day for other endpoints, subject to change. Additional quota requires a compliance audit. Quota units are not permission to extract or mirror content, and a mobile client must be able to follow API changes and credential/data-deletion requirements.
+
+**Safe to integrate?**
+
+**Conditionally yes through the official YouTube player/API path only.** It is not a general-purpose audio download provider for Clostel, and using an extractor to obtain media would move outside the documented API model.
+
+---
+
+### 12. yt-dlp — useful developer-time tool, not a production catalog API
+
+**Official documentation**
+
+- [yt-dlp official repository and README](https://github.com/yt-dlp/yt-dlp)
+- [Embedding yt-dlp](https://github.com/yt-dlp/yt-dlp#embedding-yt-dlp)
+- [Supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+- [yt-dlp license](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE)
+- [Third-party licenses](https://github.com/yt-dlp/yt-dlp/blob/master/THIRD_PARTY_LICENSES.txt)
+
+**What it is**
+
+yt-dlp describes itself as a feature-rich command-line audio/video downloader for thousands of sites. It is a Python program, not a Dart package and not a provider-neutral catalog API. Its README says it should be callable from other programming languages and recommends stable machine-readable options such as `--print` and `--dump-single-json` rather than parsing ordinary stdout; it also documents a Python embedding API.
+
+A conservative integration could use yt-dlp for a **developer-time import or metadata inspection** for a URL that Clostel owns or has explicit permission to process. `--dump-single-json`/`--simulate` can provide extractor metadata without downloading media. That is materially different from making yt-dlp Clostel’s runtime catalog: extractor output is site-specific, may contain transient URLs, and is not a normalized rights record.
+
+**Audio and download support**
+
+yt-dlp can select and download audio-only formats, and its presets can invoke audio extraction/conversion. It may require `ffmpeg`/`ffprobe`; the current README also says full YouTube support requires `yt-dlp-ejs` and a supported JavaScript runtime. A media “success” therefore says only that the tool obtained bytes; it does not say Clostel has the right to keep, redistribute, cache, or play those bytes.
+
+**Target-site terms are the controlling constraint**
+
+For YouTube, the official Terms of Service say that content may be viewed or listened to for personal, non-commercial use, and prohibit reproduction, download, distribution, transmission, display, or other use except as expressly authorized or with prior written permission from YouTube and applicable rights holders. They also prohibit automated access except for permitted public search engines or with prior written permission. The current YouTube API Developer Policies separately prohibit undocumented APIs, scraping, downloading/caching/storing audiovisual content without prior written approval, and offline playback.
+
+Therefore, using yt-dlp to bypass a provider’s key, preview limit, geo restriction, DRM, authentication, or rate limit is not an acceptable Clostel implementation. The software’s Unlicense also does not grant rights to YouTube or other site content. The repository notes that bundled release binaries include GPLv3+ and other third-party components; that is a software-distribution issue distinct from media licensing.
+
+**Operational risks**
+
+- **Brittleness:** site extractors change; the README says stable releases can be stale and recommends nightly for regular users. A pinned version is more reproducible but will still need monitored updates.
+- **Packaging:** a Flutter app would need a platform-specific executable or Python runtime plus ffmpeg and a JavaScript runtime, with process isolation, paths, permissions, updates, and cleanup handled per platform. This is an external-tool integration, not a normal Dart dependency.
+- **No central rate limit:** yt-dlp has no Clostel-wide quota; it makes requests to the target site. `--sleep-requests`, retries, and rate limits can reduce pressure but do not grant permission and do not prevent blocks or takedowns.
+- **Supply chain and security:** pin the tool, obtain official release artifacts, verify the published checksums/signatures, and do not allow arbitrary remote components. The README documents that remote components are disabled by default and warns that updates from other repositories are not verified.
+- **Data handling:** URLs and extractor output are untrusted input. Clostel must validate URL schemes/hosts, isolate subprocesses, cap concurrency and output, and avoid passing user-controlled strings through a shell.
+
+**Safe to integrate?**
+
+**Not as a production fallback, arbitrary-URL downloader, or cross-provider playback source.** It is defensible only for controlled development/import workflows where Clostel has written permission, the target site’s terms allow the action, and the resulting media license is recorded. Legal review should happen before shipping any yt-dlp-based user flow.
 
 ## Recommendation for Clostel’s provider order
 
@@ -287,15 +475,21 @@ The official SDK README lists a free plan at 10 requests/second and 500,000 requ
 2. **Internet Archive** — second choice for archival, public-domain, historical, and field-recording material. Use Advanced Search plus Metadata Read, require per-item rights validation, and send a descriptive User-Agent.
 3. **Openverse** — third choice for broad discovery, search suggestions, and attribution. Use it to find candidate works, then follow the foreign landing page/provider and verify the actual file; do not assume every `url` is a full track.
 4. **Wikimedia Commons** — fourth choice for supplementary freely licensed audio and public-domain material. It is not music-specific, so keep it separate from the main catalog ranking.
+5. **MusicBrainz** — fifth choice for canonical metadata and identifier enrichment, not playback. Respect the one-request-per-second guidance and distinguish CC0 core data from CC BY-NC-SA supplementary data.
+6. **Apple iTunes Search API** — optional store-linked metadata/affiliate discovery only. Keep its 30-second preview behind Apple’s promotional-use and no-cache rules.
 
 ### Commercial production order
 
 1. **Jamendo, after a commercial/API agreement** — best documented structured music catalog with full-track streaming, search/discovery, and explicit download controls. It is not keyless.
-2. **Audius, after an API key and OML/API-terms review** — strong open full-track streaming candidate, subject to artist settings and per-track licensing.
-3. **ccMixter and Internet Archive as supplemental providers** — use only with strict per-item/per-track rights checks, conservative request rates, and a fallback when a file is removed or unavailable.
-4. **Openverse as an attribution/discovery layer** — do not make it the canonical playback provider unless each result is promoted through its underlying source and the source’s terms are accepted.
-5. **Wikimedia Commons as a supplemental source**, not the default music catalog.
-6. **Deezer excluded from production** — its public API is preview-oriented and its current developer terms are non-commercial/private-use and prohibit offline storage. Do not use scraping, full-track URL extraction, DRM bypass, or auth bypass.
+2. **Audius, after current API Terms/OML review** — strong open full-track streaming candidate; use the optional key for higher limits and keep per-track API-access and license checks. It is not fully keyless.
+3. **MusicBrainz for metadata enrichment** — use canonical IDs/credits alongside an audio provider, subject to the non-commercial web-service terms or a commercial arrangement.
+4. **ccMixter and Internet Archive as supplemental providers** — use only with strict per-item/per-track rights checks, conservative request rates, and a fallback when a file is removed or unavailable.
+5. **Openverse as an attribution/discovery layer** — do not make it the canonical playback provider unless each result is promoted through its underlying source and the source’s terms are accepted.
+6. **Wikimedia Commons as a supplemental source**, not the default music catalog.
+7. **Apple iTunes Search API as a compliant store-promotion surface** — not a general music playback or offline source.
+8. **Spotify and YouTube excluded from Clostel’s download/cross-provider backend** — they may support separately approved official metadata/player integrations, but their current policies do not authorize extraction, downloading, or mixing with other providers.
+9. **Deezer excluded from production** — its public API is preview-oriented and its current developer terms are non-commercial/private-use and prohibit offline storage. Do not use scraping, full-track URL extraction, DRM bypass, or auth bypass.
+10. **yt-dlp excluded from the production catalog/download path** — reserve any use for controlled, permissioned development/import work only.
 
 ## Implementation guardrails for Clostel
 
@@ -303,13 +497,19 @@ The official SDK README lists a free plan at 10 requests/second and 500,000 requ
 - Normalize a `playbackKind` value such as `full`, `preview`, or `unknown`; never infer “full” solely from the existence of a URL.
 - Preserve `provider`, `providerTrackId`, source/landing URL, creator, license name/version/URL, attribution text, and the timestamp when rights were checked.
 - Apply a rights policy before returning a result to a user. For CC catalogs, exclude NC/ND licenses when the product use requires commercial or remix rights; do not treat “Creative Commons” as one blanket permission.
-- Never implement offline downloads for Deezer or Jamendo without explicit written permission. Openverse, ccMixter, IA, Commons, and Audius also need their own terms/track-level checks.
-- Use descriptive User-Agent headers, bounded concurrency, caching, backoff, and `429`/`Retry-After` handling for public/community services.
-- Treat all API responses as untrusted input, as required by the repository rules. Do not follow arbitrary URLs from metadata without validating scheme, host, content type, and licensing context.
-- Do not scrape provider websites, reverse-engineer protected endpoints, reuse test credentials, or bypass authentication/rate limits.
+- Never implement offline downloads for Deezer, Jamendo, Spotify, YouTube, or yt-dlp-extracted media without explicit written permission. Apple’s preview terms expressly prohibit download/save/cache, and Openverse, ccMixter, IA, Commons, MusicBrainz, and Audius also need their own terms/track-level checks.
+- Use descriptive User-Agent headers, bounded concurrency, caching, backoff, and `429`/`Retry-After` handling for public/community services. MusicBrainz’s live API is limited to one request per second; Openverse’s current tiers and limits must be read from response headers.
+- Treat all API responses and extractor output as untrusted input, as required by the repository rules. Do not follow arbitrary URLs from metadata without validating scheme, host, content type, and licensing context.
+- Do not scrape provider websites, reverse-engineer protected endpoints, reuse test credentials, or bypass authentication, geo restrictions, DRM, preview limits, or rate limits. yt-dlp is not an exception to these rules.
+- If yt-dlp is used for a controlled development/import workflow, pin and verify the tool, isolate it as a subprocess, restrict URLs and concurrency, disable uncontrolled remote components, and never treat a successful extraction as a rights grant.
 
 ## Source index
 
+- [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API), [rate limiting](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting), [data licensing](https://musicbrainz.org/doc/About/Data_License), [dumps](https://musicbrainz.org/doc/MusicBrainz_Database/Download)
+- [Apple iTunes Search API](https://performance-partners.apple.com/search-api), [overview/legal terms](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/index.html)
+- [Spotify Web API quickstart](https://developer.spotify.com/documentation/web-api/quick-start), [track reference](https://developer.spotify.com/documentation/web-api/reference/get-track), [Developer Terms](https://developer.spotify.com/terms), [Developer Policy](https://developer.spotify.com/policy)
+- [YouTube Data API overview](https://developers.google.com/youtube/v3/getting-started), [API reference](https://developers.google.com/youtube/v3/docs), [quota](https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits), [Developer Policies](https://developers.google.com/youtube/terms/developer-policies), [API Terms](https://developers.google.com/youtube/terms/api-services-terms-of-service), [YouTube Terms](https://www.youtube.com/t/terms), [IFrame Player](https://developers.google.com/youtube/iframe_api_reference)
+- [yt-dlp official repository/README](https://github.com/yt-dlp/yt-dlp), [embedding](https://github.com/yt-dlp/yt-dlp#embedding-yt-dlp), [supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), [license](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE), [third-party licenses](https://github.com/yt-dlp/yt-dlp/blob/master/THIRD_PARTY_LICENSES.txt)
 - [Deezer API](https://developers.deezer.com/api), [guidelines](https://developers.deezer.com/guidelines), [terms](https://developers.deezer.com/termsofuse)
 - [Jamendo API docs](https://developer.jamendo.com/v3.0/docs), [authentication](https://developer.jamendo.com/v3.0/authentication), [tracks](https://developer.jamendo.com/v3.0/tracks), [file/stream](https://developer.jamendo.com/v3.0/tracks/file), [terms](https://devportal.jamendo.com/api_terms_of_use)
 - [Audius docs](https://docs.audius.org/), [API reference](https://docs.audius.org/api/), [SDK/API plans](https://github.com/AudiusProject/apps/blob/main/packages/sdk/README.md), [terms update](https://blog.audius.co/posts/audius-terms-of-service-update)

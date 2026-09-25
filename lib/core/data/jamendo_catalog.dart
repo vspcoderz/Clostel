@@ -47,8 +47,15 @@ class JamendoMusicCatalog implements MusicCatalog {
       throw StateError('Jamendo client ID is not configured.');
     }
 
-    final response =
-        await http.get(uri, headers: {'Accept': 'application/json'});
+    final response = await http
+        .get(
+          uri,
+          headers: const {
+            'Accept': 'application/json',
+            'User-Agent': 'Clostel/0.1 (music catalog client)',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
       throw StateError('Jamendo returned HTTP ${response.statusCode}.');
     }
@@ -79,6 +86,11 @@ class JamendoMusicCatalog implements MusicCatalog {
 
     final durationSeconds =
         json['duration'] is num ? (json['duration'] as num).round() : 0;
+    final licenseUrl = _safeHttpUrl(json['license_ccurl']);
+    if (licenseUrl == null) {
+      return null;
+    }
+    final licenseName = _stringValue(json['license_name']);
     return Track(
       id: 'jamendo-$id',
       title: title,
@@ -94,7 +106,12 @@ class JamendoMusicCatalog implements MusicCatalog {
       streamUrl: streamUrl,
       artworkUrl: _safeHttpUrl(json['image']),
       source: 'Jamendo',
-      licenseUrl: _safeHttpUrl(json['license_ccurl']),
+      sourceUrl: _safeHttpUrl(json['shareurl']) ??
+          'https://www.jamendo.com/track/$id',
+      licenseUrl: licenseUrl,
+      licenseName: licenseName.isEmpty ? 'Creative Commons' : licenseName,
+      attribution: 'Music by $artist on Jamendo.',
+      playbackKind: PlaybackKind.full,
     );
   }
 

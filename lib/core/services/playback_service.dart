@@ -1,6 +1,7 @@
 import 'package:just_audio/just_audio.dart';
 
 import '../models/track.dart';
+import 'track_file_resolver.dart';
 
 abstract interface class PlaybackService {
   Stream<Duration> get positionStream;
@@ -23,9 +24,12 @@ abstract interface class PlaybackService {
 }
 
 class JustAudioPlaybackService implements PlaybackService {
-  JustAudioPlaybackService() : _player = AudioPlayer();
+  JustAudioPlaybackService({Iterable<TrackFileResolver> fileResolvers = const []})
+      : _player = AudioPlayer(),
+        _fileResolvers = List<TrackFileResolver>.unmodifiable(fileResolvers);
 
   final AudioPlayer _player;
+  final List<TrackFileResolver> _fileResolvers;
 
   @override
   Stream<Duration> get positionStream => _player.positionStream;
@@ -44,8 +48,22 @@ class JustAudioPlaybackService implements PlaybackService {
 
   @override
   Future<void> load(Track track) async {
-    final source = track.filePath != null
-        ? AudioSource.file(track.filePath!)
+    if (track.playbackKind == PlaybackKind.unknown) {
+      throw StateError('This provider does not expose a verified playback file.');
+    }
+
+    var filePath = track.filePath;
+    if (filePath == null) {
+      for (final resolver in _fileResolvers) {
+        if (resolver.supports(track)) {
+          filePath = await resolver.resolve(track);
+          break;
+        }
+      }
+    }
+
+    final source = filePath != null
+        ? AudioSource.file(filePath)
         : track.streamUrl != null
             ? AudioSource.uri(Uri.parse(track.streamUrl!))
             : track.assetPath != null
@@ -65,5 +83,10 @@ class JustAudioPlaybackService implements PlaybackService {
   Future<void> seek(Duration position) => _player.seek(position);
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    await _player.dispose();
+    for (final resolver in _fileResolvers) {
+      await resolver.dispose();
+    }
+  }
 }

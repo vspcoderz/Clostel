@@ -15,10 +15,11 @@ The first slice is a playable MVP shell with:
 - Native Liquid Glass navigation, search, buttons, and player surfaces on iOS/macOS via `flutter_liquid_glass_kit`
 - Funnel Display headings and Open Sans body typography, bundled locally
 - Discover/search surface
-- Real global music discovery through Deezer previews and optional Jamendo full Creative Commons tracks
+- Public catalog adapters for ccMixter, Openverse, Internet Archive, Deezer/Apple iTunes previews, and optional Jamendo/Audius full-track sources
+- Optional desktop-only yt-dlp search and temporary audio resolution, disabled unless `YT_DLP_PATH` is configured
 - Local demo catalog fallback for offline development
 - Local audio import for user-owned files and offline listening
-- Preview playback is clearly labeled; full-track Jamendo playback requires a production client ID and license review
+- Preview playback is clearly labeled; full-track sources retain their per-track license and attribution metadata
 - Discord Rich Presence on desktop using the bundled application ID, with a `DISCORD_APPLICATION_ID` build override for other environments
 - Settings toggle for Discord Rich Presence
 - Original generated demo audio assets for the offline fallback
@@ -34,14 +35,24 @@ Install Flutter 3.27+ (Dart 3.6+), then:
 flutter run
 ```
 
-To enable Jamendo full-track discovery in a configured environment:
+To enable Jamendo or Audius full-track discovery in a configured environment:
 
 ```bash
 flutter run -d linux \
-  --dart-define=JAMENDO_CLIENT_ID=your_jamendo_client_id
+  --dart-define=JAMENDO_CLIENT_ID=your_jamendo_client_id \
+  --dart-define=AUDIUS_API_KEY=your_audius_api_key
 ```
 
-Jamendo requires a client ID even for read requests. Clostel does not ship a test or production client ID in source.
+Jamendo requires a client ID even for read requests. Audius read-only requests use the Clostel app name and can optionally raise limits with `AUDIUS_API_KEY`. Clostel does not ship test or production credentials in source. ccMixter, Openverse, and Internet Archive use public read endpoints and still require per-track license review.
+
+To opt into the desktop-only yt-dlp adapter, install yt-dlp, ffmpeg, and the current yt-dlp-ejs/JavaScript runtime support recommended by yt-dlp using their official installation instructions, then provide the executable path:
+
+```bash
+flutter run -d linux \
+  --dart-define=YT_DLP_PATH=/absolute/path/to/yt-dlp
+```
+
+yt-dlp is not bundled. The adapter is an explicit desktop-only development/experimental path; it uses YouTube search metadata and downloads a temporary MP3 only when a yt-dlp track is played. It is not enabled on Android or iOS and must not be used to bypass copyright, authentication, DRM, or a service's terms. It is not a production catalog or download backend.
 
 Discord Rich Presence uses the bundled Clostel application ID. To override it:
 
