@@ -111,7 +111,9 @@ class _DesktopShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return AdaptiveGlassScope(
       child: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
+        decoration: BoxDecoration(
+          gradient: AppTheme.backgroundGradientFor(context),
+        ),
         child: Scaffold(
           backgroundColor: Colors.transparent,
           body: Row(
@@ -180,7 +182,9 @@ class _MobileShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return AdaptiveGlassScope(
       child: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
+        decoration: BoxDecoration(
+          gradient: AppTheme.backgroundGradientFor(context),
+        ),
         child: Scaffold(
           backgroundColor: Colors.transparent,
           body: SafeArea(
@@ -219,6 +223,14 @@ String _pageTitle(int index) {
 }
 
 String _sourceLabel(Track track) => track.source ?? 'Catalog';
+
+void _openNowPlaying(BuildContext context, PlayerController controller) {
+  Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => _NowPlayingPage(controller: controller),
+    ),
+  );
+}
 
 class _SelectedPage extends StatelessWidget {
   const _SelectedPage({
@@ -285,10 +297,11 @@ class _DiscoverView extends StatelessWidget {
               ],
               const SizedBox(height: 30),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Fresh signals',
-                      style: Theme.of(context).textTheme.headlineSmall),
+                  Expanded(
+                    child: Text('Fresh signals',
+                        style: Theme.of(context).textTheme.headlineSmall),
+                  ),
                   if (controller.isSearching)
                     const SizedBox(
                       width: 18,
@@ -329,35 +342,54 @@ class _PageIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final intro = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Discover / today',
+                style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 10),
+            Text('A better way to\nhear the world.',
+                style: Theme.of(context).textTheme.displaySmall),
+            const SizedBox(height: 10),
+            Text(
+              'A focused listening room for the tracks worth keeping close.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        );
+        final nowPlaying = Chip(
+          avatar: const Icon(Icons.graphic_eq, size: 16),
+          label: const Text('Now playing'),
+          side: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+        );
+
+        if (constraints.maxWidth < 520) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DISCOVER / TODAY',
-                  style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 10),
-              Text('A better way to\nhear the world.',
-                  style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 10),
-              Text(
-                'A focused listening room for the tracks worth keeping close.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+              intro,
+              if (controller.currentTrack != null) ...[
+                const SizedBox(height: 16),
+                nowPlaying,
+              ],
             ],
-          ),
-        ),
-        if (controller.currentTrack != null)
-          const Chip(
-            avatar: Icon(Icons.graphic_eq, size: 16),
-            label: Text('Now playing'),
-            side: BorderSide(color: AppTheme.line),
-            backgroundColor: AppTheme.surface,
-          ),
-      ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: intro),
+            if (controller.currentTrack != null) nowPlaying,
+          ],
+        );
+      },
     );
   }
 }
@@ -372,56 +404,82 @@ class _FeaturedTrack extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCurrent = controller.currentTrack?.id == track.id;
     final canPlay = track.hasVerifiedPlayback;
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          track.isPreview ? 'Live catalog preview' : 'Featured signal',
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          track.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          track.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${track.album}  /  ${_sourceLabel(track)}  /  ${_formatDuration(track.duration)}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 14),
+        AdaptivePrimaryButton(
+          label: canPlay
+              ? (isCurrent && controller.isPlaying ? 'Pause' : 'Play signal')
+              : 'Unavailable',
+          icon: canPlay
+              ? (isCurrent && controller.isPlaying
+                  ? Icons.pause
+                  : Icons.play_arrow)
+              : Icons.block,
+          isLoading: controller.isLoading && isCurrent,
+          onPressed: canPlay
+              ? () {
+                  if (isCurrent) {
+                    controller.togglePlayback();
+                  } else {
+                    controller.playTrack(track, queue: controller.featured);
+                  }
+                }
+              : null,
+        ),
+      ],
+    );
 
     return AdaptiveContentCard(
       padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          _Artwork(track: track, size: 124, radius: 16),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final artwork = _Artwork(track: track, size: 124, radius: 16);
+          if (constraints.maxWidth < 560) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  track.isPreview ? 'LIVE CATALOG PREVIEW' : 'FEATURED SIGNAL',
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(track.title,
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 4),
-                Text(
-                  track.isPreview
-                      ? '${track.artist}  /  ${track.album}  /  ${_sourceLabel(track)} preview'
-                      : '${track.artist}  /  ${track.album}  /  ${_sourceLabel(track)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 14),
-                AdaptivePrimaryButton(
-                  label: canPlay
-                      ? (isCurrent && controller.isPlaying ? 'Pause' : 'Play signal')
-                      : 'Unavailable',
-                  icon: canPlay
-                      ? (isCurrent && controller.isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow)
-                      : Icons.block,
-                  isLoading: controller.isLoading && isCurrent,
-                  onPressed: canPlay
-                      ? () {
-                          if (isCurrent) {
-                            controller.togglePlayback();
-                          } else {
-                            controller.playTrack(track, queue: controller.featured);
-                          }
-                        }
-                      : null,
-                ),
+                artwork,
+                const SizedBox(height: 18),
+                details,
               ],
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            children: [
+              artwork,
+              const SizedBox(width: 18),
+              Expanded(child: details),
+            ],
+          );
+        },
       ),
     );
   }
@@ -440,57 +498,124 @@ class _TrackRow extends StatelessWidget {
     final isCurrent = controller.currentTrack?.id == track.id;
     final isSaved = controller.isSaved(track);
     final canPlay = track.hasVerifiedPlayback;
-    final actionIcon = canPlay
-        ? (isCurrent && controller.isPlaying ? Icons.pause : Icons.play_arrow)
-        : Icons.block;
+    final playLabel = isCurrent && controller.isPlaying ? 'Pause' : 'Play';
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: AppTheme.surface,
-      child: ListTile(
-        onTap: canPlay ? () => controller.playTrack(track, queue: queue) : null,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: _Artwork(track: track, size: 54, radius: 10),
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: isCurrent ? AppTheme.accent : AppTheme.paper,
+    return Semantics(
+      label: '${track.title} by ${track.artist}',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        color: colorScheme.surface,
+        child: ListTile(
+          onTap: canPlay
+              ? () {
+                  if (isCurrent) {
+                    controller.togglePlayback();
+                  } else {
+                    controller.playTrack(track, queue: queue);
+                  }
+                }
+              : null,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          minVerticalPadding: 8,
+          isThreeLine: true,
+          leading: _Artwork(track: track, size: 54, radius: 10),
+          title: Text(
+            track.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: isCurrent ? colorScheme.primary : colorScheme.onSurface,
+                ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(fontSize: 14, height: 1.15),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${track.album}  /  ${_sourceLabel(track)}  /  ${track.isPreview ? 'Preview' : track.licenseName ?? track.genre}  /  ${_formatDuration(track.duration)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 12, height: 1.15),
+                ),
+              ],
+            ),
+          ),
+          trailing: PopupMenuButton<String>(
+            tooltip: 'Actions for ${track.title}',
+            onSelected: (action) {
+              if (action == 'play') {
+                if (isCurrent) {
+                  controller.togglePlayback();
+                } else {
+                  controller.playTrack(track, queue: queue);
+                }
+              } else if (action == 'save') {
+                controller.toggleLibrary(track);
+              }
+            },
+            itemBuilder: (context) => [
+              if (canPlay)
+                PopupMenuItem<String>(
+                  value: 'play',
+                  child: Row(
+                    children: [
+                      Icon(isCurrent && controller.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '$playLabel ${track.title}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (!canPlay)
+                const PopupMenuItem<String>(
+                  enabled: false,
+                  child: Row(
+                    children: [
+                      Icon(Icons.block),
+                      SizedBox(width: 12),
+                      Text('Playback unavailable'),
+                    ],
+                  ),
+                ),
+              PopupMenuItem<String>(
+                value: 'save',
+                child: Row(
+                  children: [
+                    Icon(isSaved ? Icons.bookmark_remove : Icons.bookmark_add),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        isSaved ? 'Remove from library' : 'Save to library',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-        ),
-        subtitle: Text(
-          '${track.artist}  /  ${_sourceLabel(track)}  /  ${track.isPreview ? 'preview' : track.licenseName ?? track.genre}  /  ${_formatDuration(track.duration)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: isSaved ? 'Remove from library' : 'Save to library',
-              onPressed: () => controller.toggleLibrary(track),
-              icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
-            ),
-            IconButton(
-              tooltip: canPlay
-                  ? (isCurrent && controller.isPlaying
-                      ? 'Pause ${track.title}'
-                      : 'Play ${track.title}')
-                  : 'Playback is not verified for this provider',
-              onPressed: canPlay
-                  ? () {
-                      if (isCurrent) {
-                        controller.togglePlayback();
-                      } else {
-                        controller.playTrack(track, queue: queue);
-                      }
-                    }
-                  : null,
-              icon: Icon(actionIcon),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -505,23 +630,20 @@ class _LibraryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SimplePage(
-      eyebrow: 'LIBRARY / YOUR ROTATION',
+      eyebrow: 'Library / your rotation',
       title: 'Keep the good\nstuff close.',
       message:
           'Save the tracks you want to hear again. Your library follows you across Clostel surfaces.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Your files stay on this device unless you explicitly move them.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              const SizedBox(width: 16),
-              FilledButton.icon(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final message = Text(
+                'Your files stay on this device unless you explicitly move them.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              );
+              final importButton = FilledButton.icon(
                 onPressed: controller.isImportingLibrary
                     ? null
                     : controller.importLocalTracks,
@@ -533,8 +655,27 @@ class _LibraryView extends StatelessWidget {
                       )
                     : const Icon(Icons.library_music_outlined),
                 label: const Text('Import audio'),
-              ),
-            ],
+              );
+
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    message,
+                    const SizedBox(height: 12),
+                    importButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: message),
+                  const SizedBox(width: 16),
+                  importButton,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
           if (controller.library.isEmpty)
@@ -559,7 +700,7 @@ class _QueueView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SimplePage(
-      eyebrow: 'QUEUE / UP NEXT',
+      eyebrow: 'Queue / up next',
       title: 'Let the room\nkeep moving.',
       message: 'The queue is shared across every Clostel surface.',
       child: controller.queue.isEmpty
@@ -604,11 +745,11 @@ class _SettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _SimplePage(
-      eyebrow: 'SETTINGS / PERSONALIZE',
+      eyebrow: 'Settings / personalize',
       title: 'Make Clostel\nfeel like yours.',
       message: 'Keep the interface quiet, useful, and connected to the music.',
       child: Card(
-        color: AppTheme.surface,
+        color: Theme.of(context).colorScheme.surface,
         child: Column(
           children: [
             SwitchListTile.adaptive(
@@ -623,20 +764,40 @@ class _SettingsView extends StatelessWidget {
               ),
             ),
             const Divider(height: 1),
-            const ListTile(
+            const ExpansionTile(
               leading: Icon(Icons.music_note_outlined),
               title: Text('Music catalog'),
               subtitle: Text(
                 'Public adapters with per-track licensing and local offline fallback.',
               ),
-              trailing: Icon(Icons.chevron_right),
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Clostel shows the source, playback kind, and licensing context for every track. The catalog stays read-only here; playback and library actions remain available from each track.',
+                    ),
+                  ),
+                ),
+              ],
             ),
             const Divider(height: 1),
-            const ListTile(
+            const ExpansionTile(
               leading: Icon(Icons.palette_outlined),
               title: Text('Appearance'),
               subtitle: Text('Warm white is the default listening surface.'),
-              trailing: Icon(Icons.chevron_right),
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'The listening surface uses a warm white background, high-contrast text, and the coral accent to keep controls easy to find without competing with the music.',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -677,6 +838,291 @@ class _SimplePage extends StatelessWidget {
               child,
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingPage extends StatelessWidget {
+  const _NowPlayingPage({required this.controller});
+
+  final PlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final track = controller.currentTrack;
+        return AdaptiveGlassScope(
+          child: Scaffold(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            appBar: AppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              leading: IconButton(
+                tooltip: 'Close Now Playing',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+              title: const Text('Now playing'),
+            ),
+            body: DecoratedBox(
+              decoration: BoxDecoration(
+          gradient: AppTheme.backgroundGradientFor(context),
+        ),
+              child: SafeArea(
+                top: false,
+                child: track == null
+                    ? const Center(
+                        child: _EmptyState(
+                          icon: Icons.album_outlined,
+                          title: 'Nothing is playing yet',
+                          message: 'Choose a track from Discover to open the full player.',
+                        ),
+                      )
+                    : _NowPlayingContent(track: track, controller: controller),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NowPlayingContent extends StatelessWidget {
+  const _NowPlayingContent({required this.track, required this.controller});
+
+  final Track track;
+  final PlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final artworkSize = constraints.maxWidth < 400
+                  ? constraints.maxWidth
+                  : 360.0;
+              final artwork = Semantics(
+                image: true,
+                label: 'Artwork for ${track.title}',
+                child: _Artwork(track: track, size: artworkSize, radius: 24),
+              );
+              final details = _NowPlayingDetails(track: track);
+              final controls = _NowPlayingControls(controller: controller);
+
+              if (constraints.maxWidth < 720) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(child: artwork),
+                    const SizedBox(height: 28),
+                    details,
+                    const SizedBox(height: 28),
+                    controls,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      artwork,
+                      const SizedBox(width: 52),
+                      Expanded(child: details),
+                    ],
+                  ),
+                  const SizedBox(height: 34),
+                  controls,
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingDetails extends StatelessWidget {
+  const _NowPlayingDetails({required this.track});
+
+  final Track track;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Now playing', style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 10),
+        Text(
+          track.title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          track.artist,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 24),
+        _NowPlayingDetailLine(label: 'Album', value: track.album),
+        _NowPlayingDetailLine(label: 'Source', value: _sourceLabel(track)),
+        _NowPlayingDetailLine(
+          label: 'Format',
+          value: track.isPreview ? 'Catalog preview' : 'Full track',
+        ),
+        _NowPlayingDetailLine(
+          label: 'Length',
+          value: _formatDuration(track.duration),
+        ),
+        if (track.genre.isNotEmpty)
+          _NowPlayingDetailLine(label: 'Genre', value: track.genre),
+        if (track.licenseName != null)
+          _NowPlayingDetailLine(label: 'License', value: track.licenseName!),
+        if (track.attribution != null)
+          _NowPlayingDetailLine(
+            label: 'Attribution',
+            value: track.attribution!,
+          ),
+      ],
+    );
+  }
+}
+
+class _NowPlayingDetailLine extends StatelessWidget {
+  const _NowPlayingDetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 86,
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontSize: 15,
+                    height: 1.25,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NowPlayingControls extends StatelessWidget {
+  const _NowPlayingControls({required this.controller});
+
+  final PlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxMillis = controller.duration.inMilliseconds <= 0
+        ? 1.0
+        : controller.duration.inMilliseconds.toDouble();
+    final value = controller.position.inMilliseconds
+        .toDouble()
+        .clamp(0.0, maxMillis)
+        .toDouble();
+
+    return Semantics(
+      container: true,
+      label: 'Playback controls',
+      child: AdaptivePlayerSurface(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(
+                  _formatDuration(controller.position),
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                Expanded(
+                  child: Slider(
+                    value: value,
+                    max: maxMillis,
+                    semanticFormatterCallback: (next) =>
+                        '${_formatDuration(Duration(milliseconds: next.round()))} of ${_formatDuration(controller.duration)}',
+                    onChanged: controller.isLoading
+                        ? null
+                        : (next) => controller.seek(
+                              Duration(milliseconds: next.round()),
+                            ),
+                  ),
+                ),
+                Text(
+                  _formatDuration(controller.duration),
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Previous track',
+                  onPressed:
+                      controller.hasPrevious ? controller.skipPrevious : null,
+                  iconSize: 30,
+                  icon: const Icon(Icons.skip_previous),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filled(
+                  tooltip: controller.isLoading
+                      ? 'Loading track'
+                      : (controller.isPlaying ? 'Pause' : 'Play'),
+                  onPressed:
+                      controller.isLoading ? null : controller.togglePlayback,
+                  iconSize: 32,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    minimumSize: const Size(64, 64),
+                  ),
+                  icon: Icon(
+                    controller.isPlaying ? Icons.pause : Icons.play_arrow,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  tooltip: 'Next track',
+                  onPressed: controller.hasNext ? controller.skipNext : null,
+                  iconSize: 30,
+                  icon: const Icon(Icons.skip_next),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -746,8 +1192,8 @@ class _PlayerDock extends StatelessWidget {
                   tooltip: controller.isPlaying ? 'Pause' : 'Play',
                   onPressed: controller.togglePlayback,
                   style: IconButton.styleFrom(
-                    backgroundColor: AppTheme.accent,
-                    foregroundColor: AppTheme.background,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   ),
                   icon: Icon(
                       controller.isPlaying ? Icons.pause : Icons.play_arrow),
@@ -756,6 +1202,11 @@ class _PlayerDock extends StatelessWidget {
                   tooltip: 'Next track',
                   onPressed: controller.hasNext ? controller.skipNext : null,
                   icon: const Icon(Icons.skip_next),
+                ),
+                IconButton(
+                  tooltip: 'Open Now Playing',
+                  onPressed: () => _openNowPlaying(context, controller),
+                  icon: const Icon(Icons.open_in_full),
                 ),
               ],
             ),
@@ -767,8 +1218,13 @@ class _PlayerDock extends StatelessWidget {
                   child: Slider(
                     value: value,
                     max: maxMillis,
-                    onChanged: (next) =>
-                        controller.seek(Duration(milliseconds: next.round())),
+                    semanticFormatterCallback: (next) =>
+                        '${_formatDuration(Duration(milliseconds: next.round()))} of ${_formatDuration(controller.duration)}',
+                    onChanged: controller.isLoading
+                        ? null
+                        : (next) => controller.seek(
+                              Duration(milliseconds: next.round()),
+                            ),
                   ),
                 ),
                 Text(_formatDuration(controller.duration),
@@ -793,41 +1249,57 @@ class _MiniPlayer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
       child: AdaptivePlayerSurface(
-        child: Row(
-          children: [
-            _Artwork(track: track, size: 42, radius: 8),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Semantics(
+          container: true,
+          button: true,
+          onTap: () => _openNowPlaying(context, controller),
+          label: 'Open Now Playing for ${track.title}',
+          hint: 'Shows expanded playback controls',
+          child: Tooltip(
+            message: 'Open Now Playing',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openNowPlaying(context, controller),
+              child: Row(
                 children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontSize: 13),
+                  _Artwork(track: track, size: 42, radius: 8),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontSize: 13),
+                        ),
+                        Text(
+                          track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontSize: 11),
+                        ),
+                      ],
+                    ),
                   ),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 11),
+                  IconButton(
+                    tooltip: controller.isPlaying ? 'Pause' : 'Play',
+                    onPressed: controller.togglePlayback,
+                    icon: Icon(
+                        controller.isPlaying ? Icons.pause : Icons.play_arrow),
                   ),
+                  const Icon(Icons.chevron_right, size: 20),
                 ],
               ),
             ),
-            IconButton(
-              tooltip: controller.isPlaying ? 'Pause' : 'Play',
-              onPressed: controller.togglePlayback,
-              icon: Icon(controller.isPlaying ? Icons.pause : Icons.play_arrow),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -845,6 +1317,7 @@ class _Artwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Color(track.accentValue);
+    final background = Theme.of(context).colorScheme.surface;
     return Container(
       width: size,
       height: size,
@@ -853,7 +1326,7 @@ class _Artwork extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color, Color.lerp(color, AppTheme.background, 0.78)!],
+          colors: [color, Color.lerp(color, background, 0.78)!],
         ),
       ),
       child: ClipRRect(
@@ -879,17 +1352,18 @@ class _ArtworkFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = Theme.of(context).colorScheme.surface;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color, Color.lerp(color, AppTheme.background, 0.78)!],
+          colors: [color, Color.lerp(color, background, 0.78)!],
         ),
       ),
       child: Icon(
         Icons.graphic_eq,
-        color: AppTheme.background.withValues(alpha: 0.82),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.82),
         size: size * 0.42,
       ),
     );
@@ -907,12 +1381,16 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppTheme.surface,
+      color: Theme.of(context).colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           children: [
-            Icon(icon, color: AppTheme.accent, size: 32),
+            Icon(
+              icon,
+              color: Theme.of(context).colorScheme.primary,
+              size: 32,
+            ),
             const SizedBox(height: 12),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 5),
@@ -961,10 +1439,13 @@ class _LoadingTracks extends StatelessWidget {
         (index) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Card(
-            color: AppTheme.surface,
+            color: Theme.of(context).colorScheme.surface,
             child: ListTile(
               leading: const SizedBox(width: 54, height: 54),
-              title: Container(height: 14, color: AppTheme.surfaceRaised),
+              title: Container(
+                height: 14,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
               subtitle: const SizedBox(height: 8),
             ),
           ),
