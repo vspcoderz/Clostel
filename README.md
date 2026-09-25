@@ -18,7 +18,7 @@ The first slice is a playable MVP shell with:
 - Real global music discovery through Deezer's public catalog API
 - Local demo catalog fallback for offline development
 - Preview playback is clearly labeled; full-track streaming requires a future authenticated provider integration
-- Discord Rich Presence on desktop when `DISCORD_APPLICATION_ID` is configured, using pure Dart IPC with no Rust/Cargo build
+- Discord Rich Presence on desktop using the bundled application ID, with a `DISCORD_APPLICATION_ID` build override for other environments
 - Settings toggle for Discord Rich Presence
 - Original generated demo audio assets for the offline fallback
 
@@ -33,7 +33,7 @@ Install Flutter 3.27+ (Dart 3.6+), then:
 flutter run
 ```
 
-To enable Discord Rich Presence, create an application in the Discord Developer Portal and pass its application ID at build/run time:
+Discord Rich Presence is configured with the bundled Clostel application ID. To override it for another environment:
 
 ```bash
 flutter run -d linux --dart-define=DISCORD_APPLICATION_ID=your_application_id

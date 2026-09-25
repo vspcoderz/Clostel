@@ -8,11 +8,16 @@ import 'core/services/discord_presence.dart';
 import 'core/services/playback_service.dart';
 import 'features/player/player_controller.dart';
 
+const _defaultDiscordApplicationId = '1385145000718897152';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final discordPresence = DiscordPresenceService(
-    applicationId: const String.fromEnvironment('DISCORD_APPLICATION_ID'),
+    applicationId: const String.fromEnvironment(
+      'DISCORD_APPLICATION_ID',
+      defaultValue: _defaultDiscordApplicationId,
+    ),
   );
   try {
     await discordPresence.initialize();
