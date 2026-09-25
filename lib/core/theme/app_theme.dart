@@ -449,7 +449,9 @@ class AppTheme {
       unselectedLabelColor: palette.textSecondary,
       indicatorColor: palette.accent,
       indicatorSize: TabBarIndicatorSize.label,
-      indicatorWeight: 3,
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(color: palette.accent, width: 3),
+      ),
       dividerColor: Colors.transparent,
       labelStyle: _label(14, FontWeight.w700, 0.2, palette.textPrimary),
       unselectedLabelStyle:
@@ -569,7 +571,6 @@ class AppTheme {
         foregroundColor: palette.textPrimary,
         highlightColor: palette.accent.withValues(alpha: 0.12),
         hoverColor: palette.accent.withValues(alpha: 0.08),
-        splashRadius: 22,
       ),
     );
   }
@@ -752,7 +753,7 @@ class AppPalette {
 
   /// Palette for [context]'s ambient brightness.
   factory AppPalette.of(BuildContext context) {
-    return forBrightness(Theme.of(context).brightness);
+    return AppPalette.forBrightness(Theme.of(context).brightness);
   }
 
   /// Palette for an explicit [brightness], e.g. for painting outside the tree.

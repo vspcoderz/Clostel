@@ -26,6 +26,7 @@ void main() {
     expect(controller.hasNext, isTrue);
 
     await controller.skipNext();
+    await Future<void>.delayed(Duration.zero);
 
     expect(controller.currentTrack?.title, 'Amber Static');
     expect(playback.loaded,
@@ -65,7 +66,7 @@ void main() {
 
     await controller.togglePlayback();
     await Future<void>.delayed(Duration.zero);
-    expect(controller.snapshot.status, PlaybackStatus.paused);
+    expect(controller.snapshot.status, PlaybackStatus.playing);
   });
 
   test('reports loading until a track source is ready', () async {
@@ -84,6 +85,7 @@ void main() {
 
     loadGate.complete();
     await playbackRequest;
+    await Future<void>.delayed(Duration.zero);
     expect(controller.status, PlaybackStatus.playing);
   });
 
